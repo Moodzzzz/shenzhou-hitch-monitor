@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>神州顺风车 · 看板</title>
+<style>
+  :root{
+    --bg:#0e1014; --panel:#161a21; --panel2:#1c212a; --line:#252b36;
+    --text:#e8eaf0; --muted:#8b93a7; --dim:#5d6577;
+    --accent:#ffc53d; --accent2:#ff9f0a;
+    --ok:#3ddc97; --lock:#ff6b8b; --info:#5aa9ff;
+    --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+    -webkit-font-smoothing:antialiased}
+  a{color:var(--info);text-decoration:none}
+  .wrap{max-width:1440px;margin:0 auto;padding:22px 20px 60px}
+
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+  h1{font-size:21px;margin:0;letter-spacing:.3px;font-weight:650}
+  h1 span{color:var(--accent)}
+  .sub{color:var(--muted);font-size:12.5px;margin-top:6px}
+  .sub b{color:var(--text);font-weight:600}
+  button{font:inherit;color:var(--text);background:var(--panel2);border:1px solid var(--line);
+    padding:8px 14px;border-radius:10px;cursor:pointer;transition:.15s}
+  button:hover{border-color:var(--accent);color:var(--accent)}
+  button:active{transform:translateY(1px)}
+
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:13px 15px}
+  .kpi .k{color:var(--muted);font-size:11.5px;letter-spacing:.4px}
+  .kpi .v{font-size:22px;font-weight:700;margin-top:5px;font-variant-numeric:tabular-nums}
+  .kpi .v small{font-size:12px;color:var(--muted);font-weight:500;margin-left:3px}
+  .kpi.lock .v{color:var(--lock)}
+  .kpi.ok .v{color:var(--ok)}
+
+  .filters{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:12px 14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+  .field{display:flex;align-items:center;gap:7px}
+  .field label{color:var(--dim);font-size:12px;white-space:nowrap}
+  input,select{font:inherit;font-size:13px;color:var(--text);background:var(--panel2);
+    border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none;min-width:0}
+  input:focus,select:focus{border-color:var(--accent)}
+  #q{width:190px}
+  .seg{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:9px;overflow:hidden}
+  .seg button{border:0;border-radius:0;background:transparent;padding:8px 12px;font-size:12.5px;color:var(--muted)}
+  .seg button.on{background:var(--accent);color:#1a1400;font-weight:600}
+  .spacer{flex:1}
+
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 372px;gap:16px;align-items:start}
+  @media(max-width:1080px){.layout{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,1fr)}}
+
+  .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:10px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 15px;position:relative;transition:.15s}
+  .card:hover{border-color:#39414f;transform:translateY(-1px)}
+  .card.locked{opacity:.62;border-style:dashed}
+  .route{font-size:15px;font-weight:600;display:flex;align-items:center;gap:6px}
+  .route .arrow{color:var(--dim);font-weight:400}
+  .model{color:var(--muted);font-size:12.5px;margin-top:4px}
+  .price{margin-top:9px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .price .now{font-size:26px;font-weight:750;color:var(--accent);font-variant-numeric:tabular-nums}
+  .price .now small{font-size:12px;font-weight:500;margin-left:1px}
+  .price .was{color:var(--dim);text-decoration:line-through;font-size:12.5px}
+  .price .off{background:#2a2413;color:var(--accent);font-size:11px;padding:2px 6px;border-radius:6px}
+  .meta{color:var(--muted);font-size:12px;margin-top:7px;line-height:1.55}
+  .badge{position:absolute;top:12px;right:12px;font-size:10.5px;padding:3px 8px;border-radius:999px;
+    border:1px solid var(--line);color:var(--muted);background:#12151b}
+  .badge.lock{color:var(--lock);border-color:#4a2230;background:#241318}
+
+  aside{position:sticky;top:18px;display:flex;flex-direction:column;gap:14px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  .panel h2{font-size:13px;margin:0 0 2px;letter-spacing:.5px;color:var(--muted);font-weight:600}
+  .panel .hint{color:var(--dim);font-size:11.5px;line-height:1.6;margin-top:6px}
+
+  .fc-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px}
+  .ring{display:flex;align-items:center;gap:14px;margin:4px 0 12px}
+  .ring svg{flex:none}
+  .ring .num{font-size:26px;font-weight:750;color:var(--ok);font-variant-numeric:tabular-nums}
+  .ring .lbl{color:var(--muted);font-size:11.5px;margin-top:2px}
+
+  .rows{display:flex;flex-direction:column;gap:7px;margin-top:4px}
+  .row{display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted)}
+  .row b{color:var(--text);font-weight:600;font-variant-numeric:tabular-nums}
+
+  .chart{margin-top:12px}
+  .bars{display:flex;align-items:flex-end;gap:6px;height:74px;margin-top:6px}
+  .bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end}
+  .bar i{display:block;width:100%;background:linear-gradient(180deg,var(--accent),#7a5c12);
+    border-radius:4px 4px 2px 2px;min-height:2px;transition:.3s}
+  .bar span{font-size:10px;color:var(--dim)}
+  .bar b{font-size:10px;color:var(--muted);font-variant-numeric:tabular-nums}
+
+  .empty{color:var(--dim);text-align:center;padding:60px 20px;font-size:13px;grid-column:1/-1}
+  .foot{color:var(--dim);font-size:11.5px;line-height:1.7;margin-top:8px}
+  .err{background:#2a1519;border:1px solid #4a2230;color:#ffb3c1;padding:14px 16px;
+    border-radius:12px;font-size:13px;line-height:1.7}
+  .err code{background:#1a0e12;padding:1px 6px;border-radius:5px;color:#ffd7e0}
+  .pill{font-size:10.5px;color:var(--dim);border:1px solid var(--line);padding:2px 7px;border-radius:999px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>神州顺风车 <span>·</span> 看板</h1>
+      <div class="sub" id="sub">加载中…</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <span class="pill" id="genAt"></span>
+      <button id="reload">刷新</button>
+    </div>
+  </header>
+
+  <div id="banner"></div>
+
+  <section class="kpis" id="kpis"></section>
+
+  <section class="filters">
+    <div class="field"><label>车型</label><input id="q" placeholder="如 宝马 / 理想 / 帕萨特" autocomplete="off"></div>
+    <div class="field"><label>取车</label><select id="from"><option value="">全部</option></select></div>
+    <div class="field"><label>还车</label><select id="to"><option value="">全部</option></select></div>
+    <div class="field"><label>价格≤</label><input id="maxp" type="number" min="0" step="50" style="width:88px" placeholder="不限"></div>
+    <div class="seg" id="statusSeg">
+      <button data-v="all" class="on">全部</button>
+      <button data-v="available">可预订</button>
+      <button data-v="locked">被锁定</button>
+    </div>
+    <div class="field"><label>排序</label>
+      <select id="sort">
+        <option value="price">价格最低</option>
+        <option value="discount">折扣最大</option>
+        <option value="date">取车最早</option>
+        <option value="days">租期最长</option>
+      </select>
+    </div>
+    <div class="spacer"></div>
+    <div class="field"><span style="color:var(--dim);font-size:12px" id="count"></span></div>
+  </section>
+
+  <div class="layout">
+    <main class="list" id="list"></main>
+    <aside>
+      <div class="panel">
+        <h2>指定地点预报</h2>
+        <div class="fc-head" style="margin-top:10px">
+          <select id="fcCity" style="flex:1"><option value="">选择取车城市</option></select>
+        </div>
+        <div id="fcBody"></div>
+        <div class="hint" id="fcHint"></div>
+      </div>
+      <div class="panel">
+        <h2>观测节奏</h2>
+        <div id="trend"></div>
+        <div class="hint">
+          预报基于「新车上架」的历史频率做泊松外推，不是官方排期。跑得越久越准。
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n || 0).toLocaleString("zh-CN");
+
+let DATA = null;
+const state = { q:"", from:"", to:"", maxp:0, status:"all", sort:"price", city:"" };
+
+function money(n){ return n === 0 ? "免费" : fmt(n); }
+
+function poi(lam){ return 1 - Math.exp(-Math.max(0, lam || 0)); }
+
+async function load(){
+  $("#sub").textContent = "加载中…";
+  $("#banner").innerHTML = "";
+  try{
+    const r = await fetch("dashboard.json?_=" + Date.now(), {cache:"no-store"});
+    if(!r.ok) throw new Error("HTTP " + r.status);
+    DATA = await r.json();
+  }catch(e){
+    $("#sub").textContent = "数据未就绪";
+    $("#banner").innerHTML = `<div class="err">
+      读不到 <code>dashboard.json</code>：${esc(e.message)}<br>
+      先运行 <code>python main.py once --export dashboard/dashboard.json</code>，
+      或直接 <code>python main.py serve --refresh</code>（会自动抓一轮并起本地预览）。<br>
+      注意：直接用浏览器打开本文件（file://）会被 CORS 拦截，请用上面的本地服务。
+    </div>`;
+    return;
+  }
+  renderAll();
+}
+
+function renderAll(){
+  const t = DATA.totals || {};
+  const fc = DATA.forecast || {};
+  $("#genAt").textContent = "数据 " + (DATA.generated_at || "-");
+  $("#sub").innerHTML = `在售 <b>${fmt(t.live)}</b> 条 · 被锁定 <b>${fmt(t.locked)}</b> 条 ·
+     覆盖 <b>${fmt(t.cities)}</b> 城 · 观测 <b>${fc.observed_days ?? 0}</b> 天`;
+
+  const kpis = [
+    ["在售", fmt(t.live), "ok", "条"],
+    ["被锁定", fmt(t.locked), "lock", "条"],
+    ["覆盖城市", fmt(t.cities), "", "个"],
+    ["车型", fmt(t.models), "", "款"],
+    ["最低价", money(t.min_price), "", "元"],
+    ["平均省", (t.avg_save ? t.avg_save.toFixed(0) : "-"), "", "%"],
+  ];
+  $("#kpis").innerHTML = kpis.map(([k,v,cls,u]) => `
+    <div class="kpi ${cls}"><div class="k">${k}</div>
+      <div class="v">${v}<small>${u}</small></div></div>`).join("");
+
+  fillSelect("#from", DATA.cities.map(c => c.name));
+  fillSelect("#to", DATA.cities.map(c => c.name));
+  fillSelect("#fcCity", Object.keys((DATA.forecast || {}).cities || {}), "选择取车城市");
+  if(!state.city && $("#fcCity").options.length > 1){
+    state.city = $("#fcCity").options[1].value;
+    $("#fcCity").value = state.city;
+  }
+
+  renderList();
+  renderForecast();
+  renderTrend();
+}
+
+function fillSelect(sel, values, placeholder){
+  const el = $(sel);
+  const keep = el.value;
+  el.innerHTML = `<option value="">${placeholder || "全部"}</option>` +
+    values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join("");
+  if(values.includes(keep)) el.value = keep;
+}
+
+function filtered(){
+  const q = state.q.trim().toLowerCase();
+  let arr = (DATA.listings || []).filter(it => {
+    if(state.status !== "all" && it.status !== state.status) return false;
+    if(state.from && it.from !== state.from) return false;
+    if(state.to && it.to !== state.to) return false;
+    if(state.maxp && Number(it.price) > state.maxp) return false;
+    if(q){
+      const hay = (it.model + " " + it.desc + " " + it.from + " " + it.to).toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const by = {
+    price: (a,b) => a.price - b.price,
+    discount: (a,b) => (b.orig / (b.price||1)) - (a.orig / (a.price||1)),
+    date: (a,b) => (a.begin || "9999").localeCompare(b.begin || "9999"),
+    days: (a,b) => (b.days||0) - (a.days||0),
+  }[state.sort];
+  return arr.sort(by);
+}
+
+function renderList(){
+  const arr = filtered();
+  $("#count").textContent = `${fmt(arr.length)} 条结果`;
+  if(!arr.length){
+    $("#list").innerHTML = `<div class="empty">没有符合条件的顺风车，试试放宽价格或清空搜索词。</div>`;
+    return;
+  }
+  const LIMIT = 600;
+  $("#list").innerHTML = arr.slice(0, LIMIT).map(it => {
+    const locked = it.status === "locked";
+    const savePct = it.orig && it.price ? Math.min(99, Math.round((1 - it.price / it.orig) * 100)) : 0;
+    const dates = it.begin ? `${esc(it.begin.slice(5))} → ${esc((it.end||"").slice(5))}` : "日期待定";
+    const dept = it.deptFrom || it.deptTo
+      ? `<div class="meta">📍 ${esc(it.deptFrom || it.from)} → ${esc(it.deptTo || it.to)}</div>` : "";
+    return `<article class="card ${locked ? "locked" : ""}">
+      <span class="badge ${locked ? "lock" : ""}">${locked ? "被锁定" : "可预订"}</span>
+      <div class="route">${esc(it.from)} <span class="arrow">→</span> ${esc(it.to)}</div>
+      <div class="model">${esc(it.model)}${it.desc ? " · " + esc(it.desc) : ""}</div>
+      <div class="price">
+        <span class="now">${money(it.price)}<small>元</small></span>
+        ${it.orig && it.orig > it.price ? `<span class="was">原价 ${fmt(it.orig)}</span>` : ""}
+        ${savePct >= 50 ? `<span class="off">省 ${savePct}%</span>` : ""}
+      </div>
+      <div class="meta">📅 ${dates}${it.days ? " · " + it.days + " 天" : ""}</div>
+      ${dept}
+      <div class="meta" style="color:var(--dim);font-size:11px">ID ${esc(it.id)}</div>
+    </article>`;
+  }).join("") + (arr.length > LIMIT
+    ? `<div class="empty">仅展示前 ${LIMIT} 条，请用筛选缩小范围</div>` : "");
+}
+
+function renderForecast(){
+  const city = state.city || $("#fcCity").value;
+  const fc = DATA.forecast || {};
+  const body = $("#fcBody");
+
+  if(!city){
+    body.innerHTML = `<div class="hint" style="margin-top:0">选一个取车城市，查看它上新节奏与明日出现概率。</div>`;
+    $("#fcHint").textContent = fc.available
+      ? `已观测 ${fc.observed_days} 天，累计记录 ${fmt(fc.total_arrivals)} 次上新。`
+      : (fc.reason || "尚无足够历史。");
+    return;
+  }
+
+  const info = (fc.cities || {})[city];
+  const liveCount = (DATA.listings || []).filter(x => x.from === city).length;
+  const lockedCount = (DATA.listings || []).filter(x => x.from === city && x.status === "locked").length;
+
+  if(!info){
+    body.innerHTML = `<div class="rows">
+        <div class="row"><span>当前在售</span><b>${fmt(liveCount)} 条</b></div>
+        <div class="row"><span>被锁定</span><b>${fmt(lockedCount)} 条</b></div>
+      </div>
+      <div class="hint">这个城市期间还没有观测到新车上线的记录，暂时无法给出预报。</div>`;
+    $("#fcHint").textContent = "换一个城市，或让监控多跑几天。";
+    return;
+  }
+
+  const p = Math.round((info.p_next_day || 0) * 100);
+  const circ = 2 * Math.PI * 26;
+  const dash = circ * (info.p_next_day || 0);
+  const color = p >= 60 ? "var(--ok)" : p >= 30 ? "var(--accent)" : "var(--dim)";
+
+  body.innerHTML = `
+    <div class="ring">
+      <svg width="66" height="66" viewBox="0 0 66 66">
+        <circle cx="33" cy="33" r="26" fill="none" stroke="#242a34" stroke-width="7"/>
+        <circle cx="33" cy="33" r="26" fill="none" stroke="${color}" stroke-width="7"
+          stroke-linecap="round" stroke-dasharray="${dash} ${circ}" transform="rotate(-90 33 33)"/>
+      </svg>
+      <div>
+        <div class="num" style="color:${color}">${p}%</div>
+        <div class="lbl">明天至少出现 1 条</div>
+      </div>
+    </div>
+    <div class="rows">
+      <div class="row"><span>历史到达</span><b>${fmt(info.arrivals)} 条</b></div>
+      <div class="row"><span>日均上新</span><b>${info.rate} 条/天</b></div>
+      <div class="row"><span>未来 7 天预计</span><b>${info.expect_7d} 条</b></div>
+      <div class="row"><span>当前在售 / 锁定</span><b>${fmt(liveCount)} / ${fmt(lockedCount)}</b></div>
+      <div class="row"><span>最近一次上新</span><b>${esc(info.last_arrival || "-")}</b></div>
+    </div>
+    <div class="chart">
+      <div class="row" style="font-size:11px;color:var(--dim)"><span>按星期分布</span></div>
+      ${weekdayChart(info.by_weekday || [])}
+    </div>`;
+  $("#fcHint").textContent = `基于 ${(DATA.forecast||{}).observed_days || 0} 天观测的统计外推，仅供参考。`;
+}
+
+function weekdayChart(vals){
+  const names = ["一","二","三","四","五","六","日"];
+  const max = Math.max(1, ...vals);
+  return `<div class="bars">` + vals.map((v,i) => `
+      <div class="bar"><b>${v || ""}</b>
+        <i style="height:${Math.max(2, Math.round(v / max * 56))}px"></i>
+        <span>${names[i]}</span>
+      </div>`).join("") + `</div>`;
+}
+
+function renderTrend(){
+  const fc = DATA.forecast || {};
+  const d = fc.daily || {dates:[], counts:[]};
+  const el = $("#trend");
+  if(!d.dates || !d.dates.length){
+    el.innerHTML = `<div class="hint">还没有「新车上线」的历史。首轮只建基线，之后每天的增量会出现在这里。</div>`;
+    return;
+  }
+  const max = Math.max(1, ...d.counts);
+  const n = d.dates.length;
+  const step = n > 10 ? Math.ceil(n / 10) : 1;
+  const bars = d.dates.map((day, i) => `
+    <div class="bar" title="${day}: ${d.counts[i]} 条">
+      <b>${d.counts[i]}</b>
+      <i style="height:${Math.max(2, Math.round(d.counts[i] / max * 56))}px"></i>
+      <span>${step > 1 ? (i % step === 0 ? day.slice(8) : "") : day.slice(5)}</span>
+    </div>`).join("");
+  el.innerHTML = `<div class="bars">${bars}</div>`;
+}
+
+/* --- 交互 --- */
+let timer = null;
+$("#q").addEventListener("input", e => {
+  clearTimeout(timer);
+  const v = e.target.value;
+  timer = setTimeout(() => { state.q = v; renderList(); }, 120);
+});
+$("#from").addEventListener("change", e => { state.from = e.target.value; renderList(); });
+$("#to").addEventListener("change", e => { state.to = e.target.value; renderList(); });
+$("#maxp").addEventListener("input", e => {
+  state.maxp = Number(e.target.value) || 0; renderList();
+});
+$("#sort").addEventListener("change", e => { state.sort = e.target.value; renderList(); });
+$("#statusSeg").addEventListener("click", e => {
+  const b = e.target.closest("button"); if(!b) return;
+  [...$("#statusSeg").children].forEach(x => x.classList.toggle("on", x === b));
+  state.status = b.dataset.v; renderList();
+});
+  $("#fcCity").addEventListener("change", e => { state.city = e.target.value; renderForecast(); });
+$("#reload").addEventListener("click", load);
+
+load();
+</script>
+</body>
+</html>

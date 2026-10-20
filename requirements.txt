@@ -1,0 +1,5 @@
+# 核心功能为纯标准库实现，无需安装任何依赖。
+#
+# 以下为可选增强，按需安装：
+# pyyaml   —— 想用 config.yaml 而不是 config.json
+# oss2     —— 阿里云函数计算用 OSS 存储状态（storage.type = "oss"）

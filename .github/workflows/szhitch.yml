@@ -1,0 +1,95 @@
+name: 神州顺风车监控
+
+# 三件事：
+#   1. 每 10 分钟抓一轮，有新车上线/被锁定/回到订单库时发通知（邮件 / 企业微信 / 飞书…）
+#   2. 把面板数据 dashboard/dashboard.json 提交回仓库
+#   3. 发布到 GitHub Pages，得到一个随时可搜车型/城市、能看地点预报的看板
+#
+# 一次性准备：
+#   Settings → Secrets and variables → Actions 里加：
+#     SZHITCH_SMTP_HOST  smtp.qq.com / smtp.163.com / smtp.gmail.com …
+#     SZHITCH_SMTP_PORT  465
+#     SZHITCH_SMTP_USER  你的邮箱
+#     SZHITCH_SMTP_PASS  邮箱授权码（不是登录密码）
+#     SZHITCH_SMTP_TO    收件邮箱，多个用英文逗号分隔
+#     SZHITCH_WECOM      （可选）企业微信机器人 webhook
+#   Settings → Pages → Source 选 "GitHub Actions"
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: szhitch
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 恢复上次状态（用于判断新增 / 锁定）
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: szhitch-state-${{ github.run_id }}
+          restore-keys: szhitch-state-
+
+      - name: 抓取并推送
+        env:
+          SZHITCH_SMTP_HOST: ${{ secrets.SZHITCH_SMTP_HOST }}
+          SZHITCH_SMTP_PORT: ${{ secrets.SZHITCH_SMTP_PORT }}
+          SZHITCH_SMTP_USER: ${{ secrets.SZHITCH_SMTP_USER }}
+          SZHITCH_SMTP_PASS: ${{ secrets.SZHITCH_SMTP_PASS }}
+          SZHITCH_SMTP_TO: ${{ secrets.SZHITCH_SMTP_TO }}
+          SZHITCH_WECOM: ${{ secrets.SZHITCH_WECOM }}
+          SZHITCH_FEISHU: ${{ secrets.SZHITCH_FEISHU }}
+          SZHITCH_BARK: ${{ secrets.SZHITCH_BARK }}
+        run: python main.py once --export dashboard/dashboard.json
+
+      - name: 保存本轮状态
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: szhitch-state-${{ github.run_id }}
+
+      - name: 提交面板数据
+        continue-on-error: true
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard/dashboard.json
+          if git diff --cached --quiet; then
+            echo "面板数据无变化"
+          else
+            git commit -m "chore: 更新顺风车面板数据 [skip ci]"
+            git push
+          fi
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dashboard
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

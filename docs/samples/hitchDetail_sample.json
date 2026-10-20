@@ -1,0 +1,43 @@
+{
+  "busiCode": "BASE000",
+  "code": 1,
+  "content": {
+    "returnCityLon": "116.372831",
+    "vehicleId": "2168193",
+    "limitTenancyDay": 6,
+    "pickupCityName": "张掖",
+    "estTotalPrice": "3048",
+    "beginTime": "2026-10-20 20:32",
+    "pickupDept": {
+      "pickupWebsite": 0,
+      "deptName": "张掖机场自助点",
+      "workTime": "00:00-24:00",
+      "pickupAppropriate": 0,
+      "deptId": "76008",
+      "inventoryAbleFlag": true
+    },
+    "endTime": "2026-10-22 00:00",
+    "returnDept": {
+      "pickupWebsite": 0,
+      "deptName": "揭阳国际机场服务点",
+      "workTime": "00:00-24:00",
+      "pickupAppropriate": 1,
+      "deptId": "95041"
+    },
+    "modelId": 4151,
+    "modelPic": "https://dfs.zuchecdn.com/visit/caroperation/g/V4/4e80c883e3f74955a8a8c4ca10b87a3a.png",
+    "modelDescNoSP": "42kWh增程式 | SUV 5座",
+    "returnCityLat": "23.549993",
+    "modelName": "理想L7",
+    "bafTips": "燃油/过路费自理",
+    "realTotalPrice": "100",
+    "returnCityId": "236",
+    "specification": "1.预订及计价：顺风车订单，预订时限制取还车城市，不限制行驶里程，车辆租赁及服务费享受优惠的固定价格，以系统报价为准，如需可选服务，另外计费；\n2.订单修改：顺风车订单，取车后可修改还车城市，修改后将重新按日租价格计费，不享受顺风车订单优惠价，修改后的费用需补充支付，其他修改规则与预付订单相同；\n3.费用支付：顺风车订单，需在预订后30分钟内预付全款；\n4.换车：顺风车订单，取车前、用车中均不支持换车；\n5.续租：顺风车订单，支持续租，续租部分可选择日租或套餐计价；\n6.其他：顺风车不与其他优惠活动同时享受。\n",
+    "modelDesc": "42kWh增程式 | SUV 5座",
+    "pickupCityId": "335",
+    "returnCityName": "揭阳"
+  },
+  "msg": "成功",
+  "status": "SUCCESS",
+  "uid": "b0d43244-6288-42f2-850c-1fa2f2f8e1901792499715271"
+}

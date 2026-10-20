@@ -1,0 +1,65 @@
+{
+  "poll": {
+    "interval_seconds": 600,
+    "page_size": 200,
+    "max_pages": 30,
+    "min_request_interval": 1.2,
+    "timeout": 20,
+    "retries": 3
+  },
+  "source": {
+    "pickup_city_id": null,
+    "return_city_id": null
+  },
+  "watch": {
+    "pickup_cities": [],
+    "return_cities": [],
+    "routes": [],
+    "models": [],
+    "exclude_models": [],
+    "max_price": 200,
+    "min_price": null,
+    "max_price_per_day": null,
+    "only_special": false,
+    "special_price": 100,
+    "min_days": null,
+    "max_days": null,
+    "date_from": null,
+    "date_to": null
+  },
+  "behavior": {
+    "first_run": "silent",
+    "notify_new": true,
+    "notify_relisted": true,
+    "notify_price_drop": true,
+    "notify_locked": true,
+    "notify_closed": false,
+    "notify_expired": false,
+    "probe_missing_limit": 15,
+    "verify_missing": true,
+    "verify_missing_limit": 40,
+    "confirm_absence_passes": 2,
+    "prune_expired_days": 7,
+    "enrich_detail": true,
+    "detail_limit": 10,
+    "dashboard_enrich_limit": 15,
+    "max_items_per_message": 8,
+    "prune_days": 30
+  },
+  "notify": {
+    "console": true,
+    "wecom_webhook": "",
+    "feishu_webhook": "",
+    "feishu_secret": "",
+    "dingtalk_webhook": "",
+    "dingtalk_secret": "",
+    "bark_key": "",
+    "serverchan_key": "",
+    "webhook_url": "",
+    "smtp": null
+  },
+  "storage": {
+    "type": "sqlite",
+    "path": "data/state.db"
+  }
+}

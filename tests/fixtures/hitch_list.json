@@ -1,0 +1,55 @@
+{
+ "busiCode": "BASE000",
+ "code": 1,
+ "msg": "成功",
+ "status": "SUCCESS",
+ "content": {
+  "picUrl": "https://fimg.zuchecdn.com/upload/app/other/free_ride@2x.png",
+  "count": 3,
+  "threshold": 6,
+  "hitchList": [
+   {
+    "modelPic": "https://dfs.zuchecdn.com/visit/caroperation/g/V4/4e80c883e3f74955a8a8c4ca10b87a3a.png",
+    "modelId": 4151,
+    "modelName": "理想L7",
+    "limitTenancyDay": 6,
+    "realTotalPrice": "100",
+    "pickupCityName": "张掖",
+    "beginTime": "2026.10.20",
+    "hitchId": "9515098",
+    "endDate": "10月22日",
+    "beginDate": "10月20日",
+    "endTime": "2026.10.22",
+    "returnCityName": "揭阳"
+   },
+   {
+    "modelPic": "https://dfs.zuchecdn.com/visit/caroperation/g/V4/2e78fa80be8f4dd19471bf2528f93b19.png",
+    "modelId": 2464,
+    "modelName": "比亚迪秦PLUS",
+    "limitTenancyDay": 1,
+    "realTotalPrice": "100",
+    "pickupCityName": "合肥",
+    "beginTime": "2026.10.20",
+    "hitchId": "9515095",
+    "endDate": "10月22日",
+    "beginDate": "10月20日",
+    "endTime": "2026.10.22",
+    "returnCityName": "芜湖"
+   },
+   {
+    "modelPic": "https://dfs.zuchecdn.com/visit/caroperation/g/V3/4b4c722c7e914031bad2c31c81b66371.png",
+    "modelId": 1528,
+    "modelName": "大众途观L",
+    "limitTenancyDay": 2,
+    "realTotalPrice": "100",
+    "pickupCityName": "呼和浩特",
+    "beginTime": "2026.10.20",
+    "hitchId": "9515091",
+    "endDate": "10月22日",
+    "beginDate": "10月20日",
+    "endTime": "2026.10.22",
+    "returnCityName": "信阳"
+   }
+  ]
+ }
+}

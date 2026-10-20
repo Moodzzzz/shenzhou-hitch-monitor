@@ -1,0 +1,19 @@
+[Unit]
+Description=神州顺风车监控 (szhitch)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/shenzhou-hitch-monitor
+ExecStart=/usr/bin/python3 main.py watch
+Restart=always
+RestartSec=30
+# 崩溃重启但不无限重试：一小时超过 5 次就停下，避免被当成异常流量
+StartLimitIntervalSec=3600
+StartLimitBurst=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

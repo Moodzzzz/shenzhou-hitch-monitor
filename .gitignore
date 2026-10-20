@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.venv/
+data/state.db
+data/state.db-wal
+data/state.db-shm
+data/state.json
+data/snapshots/
+config.test.json
+*.log
