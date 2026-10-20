@@ -5,6 +5,7 @@
 程序做的事：**定时拉全量 → 比对生命周期（新上线 / 被锁定 / 回到订单库 / 过期剔除）→ 按条件过滤 → 发邮件等通知**，并把结果同步到一个可搜索的**可视面板**。
 
 > 逆向过程、接口证据链见 [`docs/REVERSE_ENGINEERING.md`](docs/REVERSE_ENGINEERING.md)。
+> 线上看板：<https://moodzzzz.github.io/shenzhou-hitch-monitor/>
 
 ---
 
