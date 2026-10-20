@@ -46,7 +46,7 @@ python main.py once --dry-run            # 演练：看当前能命中什么（�
 python main.py test-notify               # 测通知渠道
 
 python main.py once                      # 建立基线（首轮只记录，不推送）
-python main.py watch                     # 常驻，默认 10 分钟一轮
+python main.py watch                     # 常驻，默认 4 小时一轮
 ```
 
 看板：
@@ -133,14 +133,14 @@ python main.py snapshot
 | `prune_expired_days` | `7` | 过期/关闭记录保留几天后硬删除 |
 | `enrich_detail` | `true` | 命中后补详情拿原价、门店 |
 | `detail_limit` | `10` | 每轮最多补几条事件详情 |
-| `dashboard_enrich_limit` | `15` | 每轮为面板缓存几条原价（渐进覆盖） |
+| `dashboard_enrich_limit` | `40` | 每轮为面板缓存几条原价（渐进覆盖，4 小时一轮约 4 天补全） |
 | `max_items_per_message` | `8` | 单条消息最多列几条 |
 
 ### `poll` —— 多久拉一次
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
-| `interval_seconds` | `600` | 轮询间隔，最小 120 秒 |
+| `interval_seconds` | `14400` | 轮询间隔，默认 4 小时，最小 120 秒 |
 | `page_size` | `200` | 单页条数，上限 200 |
 | `min_request_interval` | `1.2` | 请求间隔，自我限速 |
 
@@ -201,7 +201,7 @@ python main.py test-notify
 3. **Settings → Pages → Source** 选 `GitHub Actions`
 4. 启用 Actions，手动跑一次（首次是建基线）
 
-之后每 10 分钟自动跑：抓取 → 发通知 → 提交 `dashboard/dashboard.json` → 发布 Pages。
+之后每 4 小时自动跑：抓取 → 发通知 → 提交 `dashboard/dashboard.json` → 发布 Pages。
 面板地址形如 `https://<用户名>.github.io/<仓库名>/`。
 
 > GitHub 的 cron 用 UTC，且高峰期可能延迟数分钟到十几分钟。要更准就用云函数。
@@ -233,7 +233,7 @@ docker run -d --name szhitch --restart always \
 
 ### 阿里云函数计算 / 腾讯云 SCF
 
-处理程序分别填 `cloud.aliyun_fc.handler.handler` 与 `cloud.tencent_scf.main_handler.main_handler`，定时触发器 10 分钟。
+处理程序分别填 `cloud.aliyun_fc.handler.handler` 与 `cloud.tencent_scf.main_handler.main_handler`，定时触发器建议 4 小时一次。
 函数实例无状态，**必须**外接存储放状态：`SZHITCH_STATE=oss://bucket/szhitch/state.json` + `OSS_*` 环境变量，否则每轮都会重复推送。
 
 ---
@@ -258,7 +258,7 @@ python main.py recheck             # 写回
 顺风车本质是异地调车，`estTotalPrice` 是按日租算的正常价，`realTotalPrice` 是调车补贴价。
 
 **Q：会被封吗？**
-列表接口不需要账号。默认每 1.2 秒一个请求、10 分钟一轮（约 30～40 请求/小时），实测无风控。接口无公开文档，随时可能变。
+列表接口不需要账号。默认每 1.2 秒一个请求、4 小时一轮（约 6 轮/天、合计 300 请求/天以内），实测无风控。接口无公开文档，随时可能变。
 
 ---
 

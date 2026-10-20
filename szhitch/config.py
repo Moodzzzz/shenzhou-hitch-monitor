@@ -9,7 +9,7 @@ from typing import Any
 
 DEFAULT_CONFIG: dict[str, Any] = {
     "poll": {
-        "interval_seconds": 600,
+        "interval_seconds": 14400,
         "page_size": 200,
         "max_pages": 30,
         "min_request_interval": 1.2,
@@ -51,7 +51,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "prune_expired_days": 7,
         "enrich_detail": True,
         "detail_limit": 10,
-        "dashboard_enrich_limit": 15,
+        "dashboard_enrich_limit": 40,
         "max_items_per_message": 8,
         "prune_days": 30,
     },

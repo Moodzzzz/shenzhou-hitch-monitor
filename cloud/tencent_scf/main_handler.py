@@ -1,7 +1,7 @@
 """腾讯云函数（SCF）入口。
 
 部署方式：项目根目录打包上传，执行方法填 ``cloud.tencent_scf.main_handler.main_handler``。
-定时触发器建议 5～10 分钟一次（cron: ``0 */10 * * * * *``）。
+定时触发器建议 4 小时一次（cron: ``0 0 */4 * * * *``）。
 
 环境变量同阿里云版本：SZHITCH_CONFIG / SZHITCH_STATE / SZHITCH_WECOM …
 注意：SCF 实例的 /tmp 不保证跨实例保留，状态务必放在 COS/OSS 或自建存储上，
