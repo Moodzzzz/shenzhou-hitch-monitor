@@ -321,9 +321,10 @@ class Monitor:
             )
 
         # ---- 2) 从列表消失：先判过期，再用「定向复核 + 连续确认」判锁定 ----
+        # 只处理上一轮还「可预订」的车；已经锁定的不重复判定，否则每轮都会重复推送
         missing = [
             s for hid, s in previous.items()
-            if hid not in current and s.status in (STATUS_AVAILABLE, STATUS_LOCKED)
+            if hid not in current and s.status == STATUS_AVAILABLE
         ]
         missing.sort(key=lambda s: s.last_seen)
 

@@ -273,6 +273,10 @@ class TestMonitorFlow(unittest.TestCase):
         self.assertEqual(stats2.locked, 1)
         self.assertEqual(store.data[items[2]["hitchId"]].status, "locked")
 
+        # 第三轮：已经锁定的不应重复推送
+        stats3 = self._monitor(partial, store, client=client).run_once()
+        self.assertEqual(stats3.locked, 0)
+
     def test_relisted_after_lock(self):
         store = FakeStore()
         items = load_fixture_items()
