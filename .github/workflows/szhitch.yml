@@ -22,6 +22,12 @@ on:
   schedule:
     - cron: "0 */4 * * *"
   workflow_dispatch:
+  # 改了工作流或筛选条件时立刻跑一次，方便验证
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/szhitch.yml"
+      - "config.json"
 
 concurrency:
   group: szhitch
@@ -90,6 +96,9 @@ jobs:
           fi
 
       - uses: actions/configure-pages@v5
+        with:
+          # 首次运行时自动开启 Pages，省掉去 Settings 手点
+          enablement: true
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dashboard
