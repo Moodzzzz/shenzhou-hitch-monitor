@@ -196,13 +196,16 @@ python main.py test-notify
 
 ### GitHub Actions（推荐，零成本）
 
-1. 把本目录推到 GitHub 仓库
+1. 建一个**公开**仓库（Free 套餐的 Pages 只支持公开仓库），把本目录推上去
 2. **Settings → Secrets and variables → Actions** 添加邮件等密钥（见上表）
 3. **Settings → Pages → Source** 选 `GitHub Actions`
 4. 启用 Actions，手动跑一次（首次是建基线）
 
 之后每 4 小时自动跑：抓取 → 发通知 → 提交 `dashboard/dashboard.json` → 发布 Pages。
 面板地址形如 `https://<用户名>.github.io/<仓库名>/`。
+
+> 仓库是公开的，所以**密钥只能放 Secrets**。配置里留空即可，工作流里有一道检查，
+> 一旦发现 `config.json` 出现明文 webhook/密码会直接失败并报错。
 
 > GitHub 的 cron 用 UTC，且高峰期可能延迟数分钟到十几分钟。要更准就用云函数。
 
