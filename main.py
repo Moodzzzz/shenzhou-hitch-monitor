@@ -106,6 +106,9 @@ def _write_dashboard(monitor: Monitor, path: Path) -> dict:
         monitor.last_states,
         arrivals=monitor.store.load_arrivals(180),
         profiles=monitor.profiles,
+        events=getattr(monitor.store, "load_events", lambda **_: [])(
+            days=30, limit=40
+        ),
     )
     path.write_text(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
