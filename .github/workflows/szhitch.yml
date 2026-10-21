@@ -37,6 +37,7 @@ permissions:
   contents: write
   pages: write
   id-token: write
+  issues: write   # 订阅 Issue 回执（命中结果评论，GitHub 会邮件通知订阅者）
 
 jobs:
   check:
@@ -73,6 +74,7 @@ jobs:
           SZHITCH_WECOM: ${{ secrets.SZHITCH_WECOM }}
           SZHITCH_FEISHU: ${{ secrets.SZHITCH_FEISHU }}
           SZHITCH_BARK: ${{ secrets.SZHITCH_BARK }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # 读取订阅 Issue + 回执
         run: python main.py once --export dashboard/dashboard.json
 
       - name: 保存本轮状态
