@@ -11,6 +11,7 @@ from collections import Counter, defaultdict
 from datetime import date, datetime, timezone
 from typing import Any, Iterable
 
+from .catalog import load_brands, load_cities, parse_model
 from .models import HitchItem
 from .store import STATUS_AVAILABLE, STATUS_LOCKED, ListingState
 
@@ -117,21 +118,49 @@ def build_payload(
     *,
     arrivals: Iterable[tuple[str, str]] | None = None,
     generated_at: datetime | None = None,
+    profiles: Any = None,
 ) -> dict[str, Any]:
-    """组装 dashboard.json。"""
+    """组装 dashboard.json。
+
+    面板是纯静态页，所有检索/筛选所需的数据都在这里备好：
+    ``city_dict``（471 城全量 + 拼音 + 首字母 + 省份）、``brands``、
+    ``routes``，前端只做过滤，不再依赖「当前有车的城市」。
+    """
     now = generated_at or datetime.now()
     listings: list[dict[str, Any]] = []
     city_stats: dict[str, dict[str, Any]] = {}
     model_counter: Counter = Counter()
+    brand_counter: Counter = Counter()
+    route_counter: Counter = Counter()
+    route_price: dict[tuple[str, str], int] = {}
     price_buckets: Counter = Counter()
     status_counts: Counter = Counter()
+    pickup_counts: Counter = Counter()
+    return_counts: Counter = Counter()
+    catalog = load_brands()
 
-    def add_listing(entry: dict[str, Any], price: int, city: str) -> None:
+    def add_listing(entry: dict[str, Any], price: int, city: str, target: str = "") -> None:
+        # 面板是静态 JSON，空字段直接不下发（每条约省 50 字节）
+        entry = {
+            k: v for k, v in entry.items()
+            if v not in ("", None) and not (k in ("orig", "days", "hit") and not v)
+        }
         listings.append(entry)
         status_counts[entry["status"]] += 1
         model_counter[entry["model"]] += 1
+        if entry.get("brand"):
+            brand_counter[entry["brand"]] += 1
         bucket = str(price) if price in (1, 50, 100) else "其他"
         price_buckets[bucket] += 1
+        if city:
+            pickup_counts[city] += 1
+        if target:
+            return_counts[target] += 1
+        pair = (city, target)
+        if city and target:
+            route_counter[pair] += 1
+            if price:
+                route_price[pair] = min(route_price.get(pair, 10**9), price)
         stat = city_stats.setdefault(city, {"name": city, "count": 0, "min": 10**9, "sum": 0})
         stat["count"] += 1
         stat["min"] = min(stat["min"], price or 10**9)
@@ -140,10 +169,14 @@ def build_payload(
     for it in items:
         cached = states.get(it.hitch_id)
         orig = it.original_price or (cached.orig_price if cached else 0) or 0
+        info = parse_model(it.model_name, catalog)
+        hit, _, _ = profiles.evaluate(it) if profiles is not None else (False, "", "")
         add_listing(
             {
                 "id": it.hitch_id,
                 "model": it.model_name,
+                "brand": info.brand,
+                "series": info.series,
                 "desc": it.model_desc,
                 "from": it.pickup_city,
                 "to": it.return_city,
@@ -156,19 +189,24 @@ def build_payload(
                 "deptTo": it.return_dept,
                 "pic": it.pic,
                 "status": STATUS_AVAILABLE,
+                "hit": bool(hit),
             },
             it.price,
             it.pickup_city,
+            it.return_city,
         )
 
     # 被锁定的车已不在列表里，用状态库里最后已知的信息补进面板
     for st in states.values():
         if st.status != STATUS_LOCKED:
             continue
+        info = parse_model(st.model_name or "", catalog)
         add_listing(
             {
                 "id": st.hitch_id,
                 "model": st.model_name or "未知车型",
+                "brand": info.brand,
+                "series": info.series,
                 "desc": "",
                 "from": st.pickup_city,
                 "to": st.return_city,
@@ -182,9 +220,11 @@ def build_payload(
                 "pic": "",
                 "status": STATUS_LOCKED,
                 "goneSince": st.gone_since,
+                "hit": False,
             },
             st.price,
             st.pickup_city,
+            st.return_city,
         )
 
     for stat in city_stats.values():
@@ -197,7 +237,7 @@ def build_payload(
     savings = [
         (1 - row["price"] / row["orig"]) * 100
         for row in listings
-        if row["orig"] and row["price"] and row["orig"] > row["price"]
+        if row.get("orig") and row.get("price") and row["orig"] > row["price"]
     ]
 
     forecast = build_forecast(states.values(), arrivals, today=now.date())
@@ -208,23 +248,70 @@ def build_payload(
             info["min_price"] = stat["min"]
             info["avg_price"] = stat["avg"]
 
+    # 城市全量字典：471 城 + 在售/到达条数。列表里出现但字典还没收录的城市也补进来，
+    # 保证面板永远不会「少城市」。
+    index = load_cities()
+    picked_names = set(pickup_counts) | set(return_counts)
+    city_dict: list[list[Any]] = []
+    known: set[str] = set()
+    for city in index.cities:
+        name = str(city["cityName"])
+        known.add(name)
+        city_dict.append([
+            str(city.get("cityId") or ""),
+            name,
+            city.get("pinyin", ""),
+            city.get("initials", ""),
+            city.get("province", ""),
+            city.get("letter", "#"),
+            pickup_counts.get(name, 0),
+            return_counts.get(name, 0),
+        ])
+    for name in sorted(picked_names - known):
+        city_dict.append(["", name, "", "", "", "#",
+                          pickup_counts.get(name, 0), return_counts.get(name, 0)])
+    city_dict.sort(key=lambda row: (row[5], row[2] or row[1]))
+
+    routes = [
+        {"from": a, "to": b, "count": n, "min": route_price.get((a, b), 0)}
+        for (a, b), n in route_counter.most_common(60)
+    ]
+
+    watch: dict[str, Any] = {"active": False, "profiles": []}
+    if profiles is not None and len(profiles):
+        watch = {
+            "active": True,
+            "profiles": [
+                {"name": p.name or f"订阅{i + 1}", "desc": p.describe()}
+                for i, p in enumerate(profiles.profiles)
+            ],
+        }
+
     return {
         "generated_at": now.strftime("%Y-%m-%d %H:%M"),
         "totals": {
             "live": len(items),
             "locked": status_counts.get(STATUS_LOCKED, 0),
             "cities": len(city_stats),
+            "city_dict": len(city_dict),
             "models": len(model_counter),
+            "brands": len(brand_counter),
+            "routes": len(route_counter),
             "min_price": min(prices) if prices else 0,
             "avg_price": round(sum(prices) / len(prices), 1) if prices else 0,
             "avg_save": round(sum(savings) / len(savings), 1) if savings else 0,
             "priced": len(savings),
             "special": sum(1 for p in prices if p <= 100),
+            "hit": sum(1 for row in listings if row.get("hit")),
         },
         "status_counts": dict(status_counts),
         "price_buckets": {k: price_buckets.get(k, 0) for k in ("1", "50", "100", "其他")},
         "listings": listings,
         "cities": sorted(city_stats.values(), key=lambda x: (-x["count"], x["name"])),
-        "models": [{"name": k, "count": v} for k, v in model_counter.most_common(40)],
+        "city_dict": city_dict,
+        "brands": [{"name": k, "count": v} for k, v in brand_counter.most_common()],
+        "routes": routes,
+        "models": [{"name": k, "count": v} for k, v in model_counter.most_common(60)],
+        "watch": watch,
         "forecast": forecast,
     }

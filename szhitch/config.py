@@ -23,7 +23,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
     "watch": {
         "pickup_cities": [],
         "return_cities": [],
+        "any_cities": [],
         "routes": [],
+        "brands": [],
+        "exclude_brands": [],
         "models": [],
         "exclude_models": [],
         "max_price": 200,
@@ -36,6 +39,8 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "date_from": None,
         "date_to": None,
     },
+    # 订阅分组：非空时优先于 watch。任一命中即推送，消息里标注订阅名。
+    "watch_profiles": [],
     "behavior": {
         "first_run": "silent",
         "notify_new": True,
@@ -142,5 +147,7 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
 def dump_default(path: str | Path) -> Path:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(DEFAULT_CONFIG, ensure_ascii=False, indent=2), encoding="utf-8")
+    p.write_text(
+        json.dumps(DEFAULT_CONFIG, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n"
+    )
     return p

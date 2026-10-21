@@ -22,10 +22,11 @@ from datetime import date
 from pathlib import Path
 from typing import Any, Callable
 
+from .catalog import load_cities, normalize_city
 from .gateway import MAX_PAGE_SIZE, GatewayClient, GatewayError
 from .models import HitchItem, parse_date, parse_int
 from .notify import Message, Notifier
-from .rules import RuleSet, _norm_city
+from .rules import ProfileSet, build_profiles
 from .store import (
     STATUS_AVAILABLE,
     STATUS_CLOSED,
@@ -63,6 +64,7 @@ class Event:
     kind: str
     item: HitchItem
     old_price: int | None = None
+    profile: str = ""      # 命中的订阅名（watch_profiles），单规则集时为空
 
     @property
     def kind_label(self) -> str:
@@ -88,6 +90,7 @@ class ScanStats:
     error: str = ""
     baseline: bool = False
     events: list[Event] = field(default_factory=list)
+    by_profile: dict[str, int] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -107,6 +110,7 @@ class ScanStats:
             "elapsed": round(self.elapsed, 1),
             "baseline": self.baseline,
             "error": self.error,
+            "by_profile": self.by_profile,
         }
 
 
@@ -141,7 +145,8 @@ class Monitor:
             min_interval=float(poll.get("min_request_interval", 1.2)),
         )
         self.store = store or create_store(cfg.get("storage") or "sqlite://data/state.db")
-        self.rules = RuleSet.from_config(cfg.get("watch") or {})
+        self.profiles: ProfileSet = build_profiles(cfg)
+        self.rules = self.profiles.fallback  # 兼容：单一规则集描述
         self._notifiers = notifiers
         self.fail_streak = 0
         # 供面板导出使用：最近一轮的在售清单与全量状态
@@ -192,16 +197,12 @@ class Monitor:
     def _city_id(self, name: str) -> str | None:
         """城市名 → cityId。用本地字典，避免为复核再多打一次详情接口。"""
         if self._city_ids is None:
-            path = Path(__file__).resolve().parents[1] / "data" / "cities.json"
-            mapping: dict[str, str] = {}
-            try:
-                data = json.loads(path.read_text("utf-8"))
-                for city in data.get("cities") or []:
-                    mapping[_norm_city(str(city.get("cityName", "")))] = str(city.get("cityId"))
-            except (OSError, json.JSONDecodeError):
-                mapping = {}
-            self._city_ids = mapping
-        return self._city_ids.get(_norm_city(name))
+            index = load_cities()
+            self._city_ids = {
+                normalize_city(str(c.get("cityName", ""))): str(c.get("cityId"))
+                for c in index.cities
+            }
+        return self._city_ids.get(normalize_city(name))
 
     def _route_still_listed(self, state: ListingState) -> bool | None:
         """按取还车城市把这条线路单独查一遍。
@@ -421,8 +422,9 @@ class Monitor:
         for ev in events:
             if ev.kind not in enabled:
                 continue
-            ok, reason = self.rules.evaluate(ev.item)
+            ok, profile, reason = self.profiles.evaluate(ev.item)
             if ok:
+                ev.profile = profile
                 matched.append(ev)
             elif ev.kind == "new":
                 self.log(f"  跳过 {ev.item} —— {reason}")
@@ -462,6 +464,9 @@ class Monitor:
         )
         stats.matched = len(matched)
         stats.events = matched
+        for ev in matched:
+            if ev.profile:
+                stats.by_profile[ev.profile] = stats.by_profile.get(ev.profile, 0) + 1
 
         if matched:
             stats.notified = self.notify(self.build_message(matched, stats))
@@ -516,8 +521,20 @@ class Monitor:
         ]
         summary = " / ".join(summary_bits)
 
+        by_profile: dict[str, int] = {}
+        for ev in events:
+            if ev.profile:
+                by_profile[ev.profile] = by_profile.get(ev.profile, 0) + 1
+        profile_line = " · ".join(
+            f"{name} {count} 条"
+            for name, count in sorted(by_profile.items(), key=lambda x: -x[1])
+        )
+
         md: list[str] = [f"## 🚗 神州顺风车 · {summary}", ""]
         plain: list[str] = [f"神州顺风车 · {summary}", ""]
+        if profile_line:
+            md += [f"**命中订阅**：{profile_line}", ""]
+            plain += [f"命中订阅：{profile_line}", ""]
         rows: list[str] = []
         shown_total = 0
 
@@ -549,6 +566,8 @@ class Monitor:
                 )
 
                 md.append(f"**{idx}. {route} · {it.model_name}**")
+                if ev.profile:
+                    md.append(f"> 🎯 订阅：{ev.profile}")
                 md.append(f"> 💰 {price_txt}")
                 md.append(f"> 📅 {it.date_range() or '日期待确认'} · {duration}")
                 if it.pickup_dept or it.return_dept:
@@ -562,6 +581,7 @@ class Monitor:
                     f"{idx}. {route} · {it.model_name} | {it.price}元"
                     + (f"(原价{it.original_price})" if it.original_price else "")
                     + f" | {it.date_range()} {duration} | {it.hitch_id}"
+                    + (f" | 订阅:{ev.profile}" if ev.profile else "")
                 )
                 rows.append(self._email_row(it, ev))
 
@@ -574,7 +594,7 @@ class Monitor:
             md.append(f"\n<font color=\"comment\">共 {rest} 条未展开，打开面板查看全部</font>")
             plain.append(f"\n共 {rest} 条未展开，打开面板查看全部")
 
-        footer = f"筛选：{self.rules.describe()} · 全国在售 {stats.total} 条"
+        footer = f"筛选：{self.profiles.describe()} · 全国在售 {stats.total} 条"
         md.append(f"\n<font color=\"comment\">{footer}</font>")
         plain.append(f"\n{footer}")
         plain.append("打开「神州租车」App → 首页「顺风车」按取还车城市搜索")
@@ -624,6 +644,7 @@ class Monitor:
                 item.date_range(),
                 f"{item.days} 天" if item.days else "",
                 item.model_desc,
+                f"订阅 {ev.profile}" if ev.profile else "",
             ] if x
         )
         dept = ""
