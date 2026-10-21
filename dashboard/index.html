@@ -236,6 +236,20 @@
   .kv .r b{color:var(--paper);font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
   .kv .r b small{font-family:var(--sans);color:var(--dim);font-weight:400;margin-left:3px}
 
+  .alog{display:flex;flex-direction:column;margin-top:10px;max-height:320px;overflow:auto;
+    scrollbar-width:thin;scrollbar-color:#2f323d transparent}
+  .alog .it{display:flex;gap:8px;align-items:baseline;padding:7px 2px;border-bottom:1px dashed var(--line);
+    font-size:12px;line-height:1.5}
+  .alog .it:last-child{border-bottom:0}
+  .alog .ic{flex:none;width:18px;text-align:center}
+  .alog .bd{flex:1;min-width:0}
+  .alog .rt{color:var(--paper);font-weight:600}
+  .alog .md{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
+  .alog .pf{color:var(--amber);font-size:10.5px;margin-left:4px}
+  .alog .tm{flex:none;color:var(--dim);font-family:var(--mono);font-size:10.5px;white-space:nowrap}
+  .alog .pr{color:var(--amber);font-family:var(--mono);font-weight:600;margin-left:5px}
+  .alog .pr s{color:var(--dim);font-weight:400;margin-left:4px}
+
   .bars{display:flex;align-items:flex-end;gap:5px;height:66px;margin-top:10px}
   .bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end}
   .bar i{display:block;width:100%;background:linear-gradient(180deg,var(--amber),#6b4f14);
@@ -376,10 +390,10 @@
       </div>
 
       <div class="panel">
-        <h2>指定地点预报</h2>
-        <div class="fc-head"><select id="fcCity" style="flex:1"><option value="">选择取车城市</option></select></div>
-        <div id="fcBody"></div>
-        <div class="hint" id="fcHint"></div>
+        <h2>预警监控</h2>
+        <div id="watchState"></div>
+        <div class="alog" id="alertLog"></div>
+        <div class="hint" id="alertHint"></div>
       </div>
 
       <div class="panel">
@@ -400,7 +414,7 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt
 const fmt = n => Number(n || 0).toLocaleString("zh-CN");
 
 let DATA = null;
-const state = { q:"", from:"", to:"", brands:new Set(), maxp:0, status:"all", sort:"price", onlyWatch:false, fcCity:"" };
+const state = { q:"", from:"", to:"", brands:new Set(), maxp:0, status:"all", sort:"price", onlyWatch:false };
 
 /* 城市字典：[id, 名称, 拼音, 首字母, 省份, 字母, 取车条数, 还车条数] */
 let CITIES = [];
@@ -586,10 +600,10 @@ function renderAll(){
 
   renderBrandChips();
   renderRouteBar();
-  renderForecastCities();
   renderWatchPanel();
+  renderWatchState();
+  renderAlertLog();
   renderList();
-  renderForecast();
   renderTrend();
 }
 
@@ -769,112 +783,51 @@ function watchProfileJson(){
   return { name, ...r };
 }
 
-/* ------------------------------------------------------------------ 预报 */
-function renderForecastCities(){
-  const sel = $("#fcCity");
-  const keep = state.fcCity;
-  const groups = {};
-  for(const c of CITIES){ (groups[c[5]] = groups[c[5]] || []).push(c); }
-  const has = name => ((DATA.forecast || {}).cities || {})[name];
-  sel.innerHTML = `<option value="">选择取车城市</option>` +
-    Object.keys(groups).sort().map(L => `<optgroup label="${L}">` +
-      groups[L].map(c => `<option value="${esc(c[1])}">${esc(c[1])}${has(c[1]) ? " ●" : ""}</option>`).join("") +
-      `</optgroup>`).join("");
-  if(keep && [...sel.options].some(o => o.value === keep)) sel.value = keep;
-  else{
-    const first = Object.keys((DATA.forecast || {}).cities || {})[0];
-    if(first){ sel.value = first; state.fcCity = first; }
-  }
-}
-
-function renderForecast(){
-  const city = state.fcCity || $("#fcCity").value;
-  const fc = DATA.forecast || {};
-  const body = $("#fcBody");
-
-  if(!city){
-    body.innerHTML = `<div class="hint" style="margin-top:0">选一个取车城市，查看它上新节奏与明日出现概率。</div>`;
-    $("#fcHint").textContent = fc.available
-      ? `已观测 ${fc.observed_days} 天，累计记录 ${fmt(fc.total_arrivals)} 次上新。`
-      : (fc.reason || "尚无足够历史。");
-    return;
-  }
-
-  const info = (fc.cities || {})[city];
-  const liveCount = (DATA.listings || []).filter(x => x.from === city).length;
-  const lockedCount = (DATA.listings || []).filter(x => x.from === city && x.status === "locked").length;
-
-  if(!info){
-    body.innerHTML = `<div class="kv">
-        <div class="r"><span>当前在售</span><b>${fmt(liveCount)}<small>条</small></b></div>
-        <div class="r"><span>被锁定</span><b>${fmt(lockedCount)}<small>条</small></b></div>
-      </div>
-      <div class="hint">这个城市期间还没有观测到新车上线的记录，暂时无法给出预报。</div>`;
-    $("#fcHint").textContent = "换一个城市，或让监控多跑几天。";
-    return;
-  }
-
-  const p = Math.round((info.p_next_day || 0) * 100);
-  const circ = 2 * Math.PI * 26;
-  const dash = circ * (info.p_next_day || 0);
-  const color = p >= 60 ? "var(--jade)" : p >= 30 ? "var(--amber)" : "var(--dim)";
-
-  body.innerHTML = `
-    <div class="ring">
-      <svg width="66" height="66" viewBox="0 0 66 66">
-        <circle cx="33" cy="33" r="26" fill="none" stroke="#22252e" stroke-width="6"/>
-        <circle cx="33" cy="33" r="26" fill="none" stroke="${color}" stroke-width="6"
-          stroke-linecap="round" stroke-dasharray="${dash} ${circ}" transform="rotate(-90 33 33)"/>
-      </svg>
-      <div>
-        <div class="num" style="color:${color}">${p}%</div>
-        <div class="lbl">明天至少出现 1 条</div>
-      </div>
-    </div>
-    <div class="kv">
-      <div class="r"><span>历史到达</span><b>${fmt(info.arrivals)}<small>条</small></b></div>
-      <div class="r"><span>日均上新</span><b>${info.rate}<small>条/天</small></b></div>
-      <div class="r"><span>未来 7 天</span><b>${info.expect_7d}<small>条</small></b></div>
-      <div class="r"><span>在售 / 锁定</span><b>${fmt(liveCount)} / ${fmt(lockedCount)}</b></div>
-      <div class="r"><span>最近上新</span><b>${esc(info.last_arrival || "-")}</b></div>
-    </div>
-    <div class="chart" style="margin-top:14px">
-      <div class="r" style="font-size:10.5px;color:var(--dim);letter-spacing:.12em;text-transform:uppercase">按星期分布</div>
-      ${weekdayChart(info.by_weekday || [])}
+/* ------------------------------------------------------------------ 预警监控 */
+function renderWatchState(){
+  const w = DATA.watch || {};
+  const n = filtered().length;
+  $("#watchState").innerHTML = `<div class="kv">
+      <div class="r"><span>当前命中</span><b>${fmt(n)}<small>条</small></b></div>
     </div>`;
-  $("#fcHint").textContent = `基于 ${(DATA.forecast||{}).observed_days || 0} 天观测的统计外推，仅供参考。`;
+
+  const prof = $("#watchProfiles");
+  if(!w.active || !(w.profiles || []).length){
+    prof.innerHTML = `<div class="hint">还没配置订阅：在左侧选好条件后点「复制 watch_profiles」，粘到 <code>config.json</code>，之后每轮 <code>watch</code>/Actions 都会按它推送。</div>`;
+  }else{
+    prof.innerHTML = w.profiles.map(p =>
+      `<div class="prof"><b>${esc(p.name)}</b><span>${esc(p.desc.replace(/^「[^」]*」 · /, ""))}</span></div>`).join("");
+  }
 }
 
-function weekdayChart(vals){
-  const names = ["一","二","三","四","五","六","日"];
-  const max = Math.max(1, ...vals);
-  return `<div class="bars">` + vals.map((v,i) => `
-      <div class="bar"><b>${v || ""}</b>
-        <i style="height:${Math.max(2, Math.round(v / max * 52))}px"></i>
-        <span>${names[i]}</span>
-      </div>`).join("") + `</div>`;
-}
-
-function renderTrend(){
-  const fc = DATA.forecast || {};
-  const d = fc.daily || {dates:[], counts:[]};
-  const el = $("#trend");
-  if(!d.dates || !d.dates.length){
-    el.innerHTML = `<div class="hint">还没有「新车上线」的历史。首轮只建基线，之后每天的增量会出现在这里。</div>`;
+function renderAlertLog(){
+  const a = DATA.alerts || {};
+  const rows = a.recent || [];
+  const box = $("#alertLog");
+  if(!rows.length){
+    box.innerHTML = `<div class="hint" style="margin-top:10px">还没有预警记录。配置订阅并跑一轮监控后，每一次「新上线 / 回到订单库 / 降价 / 被锁定」都会记录在这里并推送。</div>`;
+    $("#alertHint").textContent = "";
     return;
   }
-  const max = Math.max(1, ...d.counts);
-  const n = d.dates.length;
-  const step = n > 10 ? Math.ceil(n / 10) : 1;
-  const bars = d.dates.map((day, i) => `
-    <div class="bar" title="${day}: ${d.counts[i]} 条">
-      <b>${d.counts[i]}</b>
-      <i style="height:${Math.max(2, Math.round(d.counts[i] / max * 52))}px"></i>
-      <span>${step > 1 ? (i % step === 0 ? day.slice(8) : "") : day.slice(5)}</span>
-    </div>`).join("");
-  el.innerHTML = `<div class="bars">${bars}</div>`;
+  box.innerHTML = rows.map(r => {
+    const tm = (r.ts || "").replace("T", " ").slice(5, 16);
+    const price = r.price ? `<span class="pr">${fmt(r.price)}<s>元</s></span>` : "";
+    const route = (r.from || r.to) ? `${esc(r.from)} → ${esc(r.to)}` : "—";
+    return `<div class="it">
+      <span class="ic">${esc(r.icon || "•")}</span>
+      <span class="bd">
+        <span class="rt">${esc(r.label || r.kind)}${r.profile ? `<span class="pf">${esc(r.profile)}</span>` : ""}</span>
+        <span class="md">${route} · ${esc(r.model || "")}${price}</span>
+      </span>
+      <span class="tm">${esc(tm)}</span>
+    </div>`;
+  }).join("");
+  const names = {new:"上新", relisted:"回库", price_drop:"降价", locked:"锁定", closed:"关闭", expired:"过期"};
+  const bits = Object.entries(a.kinds || {}).map(([k, v]) => `${esc(names[k] || k)} ${v}`);
+  $("#alertHint").textContent = `最近 30 天 ${rows.length} 条` + (bits.length ? " · " + bits.join(" / ") : "");
 }
 
+/* ------------------------------------------------------------------ 分享状态 */
 /* ------------------------------------------------------------------ 分享状态 */
 function syncHash(){
   const p = new URLSearchParams();
@@ -930,7 +883,7 @@ $("#onlyWatch").onclick = e => {
   state.onlyWatch = !state.onlyWatch;
   e.currentTarget.classList.toggle("on", state.onlyWatch);
   e.currentTarget.textContent = state.onlyWatch ? "★ 只看关注" : "☆ 只看关注";
-  syncHash(); renderList();
+  syncHash(); renderList(); renderWatchState();
 };
 $("#reset").onclick = () => {
   state.from = ""; state.to = ""; state.q = ""; state.maxp = 0; state.status = "all";
@@ -940,7 +893,7 @@ $("#reset").onclick = () => {
   $("#q").value = ""; $("#maxp").value = "";
   $("#onlyWatch").classList.remove("on"); $("#onlyWatch").textContent = "☆ 只看关注";
   [...$("#statusSeg").children].forEach((x,i) => x.classList.toggle("on", i === 0));
-  syncHash(); renderBrandChips(); renderRouteBar(); renderList(); renderWatchPanel();
+  syncHash(); renderBrandChips(); renderRouteBar(); renderList(); renderWatchPanel(); renderWatchState();
 };
 $("#copyWatch").onclick = () => {
   const p = watchProfileJson();
@@ -952,7 +905,6 @@ $("#copyWatchCmd").onclick = () => {
   if(!Object.keys(r).length){ toast("先在左侧选点条件"); return; }
   copyText(JSON.stringify(r, null, 2));
 };
-$("#fcCity").addEventListener("change", e => { state.fcCity = e.target.value; renderForecast(); });
 $("#reload").addEventListener("click", load);
 
 load();
