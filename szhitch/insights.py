@@ -174,6 +174,7 @@ def build_payload(
     generated_at: datetime | None = None,
     profiles: Any = None,
     events: Iterable[dict[str, Any]] | None = None,
+    repo: str = "",
 ) -> dict[str, Any]:
     """组装 dashboard.json。
 
@@ -372,5 +373,6 @@ def build_payload(
         "models": [{"name": k, "count": v} for k, v in model_counter.most_common(60)],
         "watch": watch,
         "alerts": build_alerts(events),
+        "repo": repo,
         "forecast": forecast,
     }

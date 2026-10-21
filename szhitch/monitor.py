@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import html as _html
 import json
+import os
 import time
 import traceback
 from dataclasses import dataclass, field
@@ -26,7 +27,7 @@ from .catalog import load_cities, normalize_city
 from .gateway import MAX_PAGE_SIZE, GatewayClient, GatewayError
 from .models import HitchItem, parse_date, parse_int
 from .notify import Message, Notifier
-from .rules import ProfileSet, build_profiles
+from .rules import ProfileSet, RuleSet, build_profiles
 from .store import (
     STATUS_AVAILABLE,
     STATUS_CLOSED,
@@ -153,6 +154,10 @@ class Monitor:
         self.last_items: list[HitchItem] = []
         self.last_states: dict[str, ListingState] = {}
         self._city_ids: dict[str, str] | None = None
+        # 订阅中心（GitHub Issues）：每轮刷新
+        self.subscriptions: list[dict[str, Any]] = []
+        self.subscription_repo: str = ""
+        self.subscription_emails: list[str] = []
 
     # ------------------------------------------------------------------ 通知
 
@@ -173,6 +178,99 @@ class Monitor:
             except Exception as exc:  # 单个渠道失败不影响其他渠道
                 self.log(f"[通知失败] {n}: {exc}")
         return ok
+
+    # -------------------------------------------------------------- 订阅中心
+
+    def _refresh_subscriptions(self) -> None:
+        """从 GitHub Issues 读取订阅，合并进规则集，并归集邮箱收件人。
+
+        失败时保留本地配置的规则，不影响本轮监控。
+        """
+        sub_cfg = self.cfg.get("subscribe") or {}
+        if not sub_cfg.get("enabled", True):
+            return
+        repo = str(sub_cfg.get("repo") or "") or os.environ.get("GITHUB_REPOSITORY", "")
+        if "/" not in repo:
+            return
+        try:
+            from .subscriptions import fetch_subscriptions
+
+            subs = fetch_subscriptions(
+                repo,
+                token=os.environ.get("GITHUB_TOKEN", ""),
+                timeout=float(self.cfg.get("poll", {}).get("timeout", 20)),
+            )
+        except Exception as exc:
+            self.log(f"[订阅] 读取 Issues 失败（退回本地配置）: {exc}")
+            return
+
+        self.subscriptions = subs
+        self.subscription_repo = repo
+        if not subs:
+            return
+
+        extra = [{k: v for k, v in s.items() if not k.startswith("__")} for s in subs]
+        merged = dict(self.cfg)
+        merged["watch_profiles"] = list(self.cfg.get("watch_profiles") or []) + extra
+        self.profiles = build_profiles(merged)
+        self.rules = self.profiles.fallback
+
+        emails = sorted({s["__email"] for s in subs if s.get("__email")})
+        self.subscription_emails = emails
+        if emails:
+            self._merge_recipients(emails)
+        self.log(f"[订阅] 从 Issues 载入 {len(subs)} 条订阅"
+                 + (f"，邮件抄送 {len(emails)} 个地址" if emails else ""))
+
+    def _merge_recipients(self, emails: list[str]) -> None:
+        """把订阅里的邮箱并入 SMTP 收件人（若已配置 SMTP）。"""
+        smtp_cfg = (self.cfg.get("notify") or {}).get("smtp")
+        if not smtp_cfg:
+            return
+        to = list(smtp_cfg.get("to") or [])
+        smtp_cfg["to"] = to + [e for e in emails if e and e not in to]
+        for n in self.notifiers:
+            if getattr(n, "name", "") == "smtp":
+                n.to = smtp_cfg["to"]
+
+    def _comment_subscriptions(self, matched: list[Event]) -> None:
+        """把命中结果回执到对应的订阅 Issue（GitHub 会给订阅者发邮件）。"""
+        sub_cfg = self.cfg.get("subscribe") or {}
+        if not matched or not self.subscriptions or not sub_cfg.get("comment_alerts", True):
+            return
+        token = os.environ.get("GITHUB_TOKEN", "")
+        if not token:
+            self.log("[订阅] 未设置 GITHUB_TOKEN，跳过 Issue 回执")
+            return
+        try:
+            from .subscriptions import comment_on_issue
+        except ImportError:  # pragma: no cover
+            return
+
+        for sub in self.subscriptions:
+            rule = RuleSet.from_config({k: v for k, v in sub.items() if not k.startswith("__")})
+            hits = [ev for ev in matched if rule.evaluate(ev.item)[0]]
+            if not hits:
+                continue
+            lines = [f"🔔 预警 **{len(hits)}** 条 · {utcnow()[:16].replace('T', ' ')}（UTC）", ""]
+            for ev in hits[:10]:
+                it = ev.item
+                tag = f" `{ev.profile}`" if ev.profile else ""
+                lines.append(
+                    f"- {it.pickup_city} → {it.return_city} · {it.model_name}"
+                    f" · **{it.price} 元** · {it.date_range() or '日期待确认'}{tag}"
+                    f" · #{it.hitch_id}"
+                )
+            if len(hits) > 10:
+                lines.append(f"- ……另有 {len(hits) - 10} 条，详见面板")
+            lines.append("")
+            lines.append("*本条由监控自动回执；关闭本 Issue 即退订。*")
+            try:
+                comment_on_issue(self.subscription_repo, sub["__issue"],
+                                 "\n".join(lines), token=token)
+                self.log(f"  [订阅] 已回执 Issue #{sub['__issue']}（{len(hits)} 条命中）")
+            except Exception as exc:
+                self.log(f"  [订阅] 回执 Issue #{sub['__issue']} 失败: {exc}")
 
     # ------------------------------------------------------------------ 抓取
 
@@ -255,6 +353,9 @@ class Monitor:
         started = time.monotonic()
         stats = ScanStats()
         behavior = self.cfg.get("behavior", {})
+
+        # 订阅中心：每轮先刷新（失败自动退回本地配置）
+        self._refresh_subscriptions()
 
         try:
             items, total = self.scan()
@@ -481,6 +582,10 @@ class Monitor:
 
         if matched:
             stats.notified = self.notify(self.build_message(matched, stats))
+
+        # 订阅 Issue 回执（GitHub 自动向订阅者发邮件，零配置渠道；演练模式不发）
+        if matched and persist:
+            self._comment_subscriptions(matched)
 
         # ---- 6) 过期剔除：从状态库硬删除（保留期见 prune_expired_days）----
         keep_days = int(behavior.get("prune_expired_days", 7))

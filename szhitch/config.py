@@ -41,6 +41,13 @@ DEFAULT_CONFIG: dict[str, Any] = {
     },
     # 订阅分组：非空时优先于 watch。任一命中即推送，消息里标注订阅名。
     "watch_profiles": [],
+    # 订阅中心：从 GitHub Issues 读取订阅（面板「一键创建订阅」生成）。
+    # repo 留空时，Actions 里自动取 GITHUB_REPOSITORY；关闭 Issue 即退订。
+    "subscribe": {
+        "enabled": True,
+        "repo": "",
+        "comment_alerts": True,
+    },
     "behavior": {
         "first_run": "silent",
         "notify_new": True,
