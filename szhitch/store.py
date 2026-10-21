@@ -109,6 +109,10 @@ class BaseStore:
     def log_event(self, kind: str, item: Any, extra: dict | None = None) -> None:
         """可选的事件流水，默认不做事。"""
 
+    def load_events(self, days: int = 30, limit: int = 60) -> list[dict[str, Any]]:
+        """按时间倒序返回最近的事件（预警记录）。默认无。"""
+        return []
+
     def prune(self, days: int = 30) -> None:
         """清理已过期/已关闭且超过保留期的车，控制库体积。"""
 
@@ -237,23 +241,61 @@ class SqliteStore(BaseStore):
             ).fetchall()
         return [(r[0], r[1]) for r in rows]
 
+    @staticmethod
+    def _event_detail(item: Any, extra: dict | None) -> str:
+        return json.dumps(
+            {
+                "model": getattr(item, "model_name", ""),
+                "pickup_city": getattr(item, "pickup_city", ""),
+                "return_city": getattr(item, "return_city", ""),
+                "profile": (extra or {}).get("profile", ""),
+                "extra": extra or {},
+            },
+            ensure_ascii=False,
+        )
+
     def log_event(self, kind: str, item: Any, extra: dict | None = None) -> None:
-        signature = ""
-        sig = getattr(item, "signature", None)
-        if callable(sig):
-            try:
-                signature = sig()
-            except Exception:
-                signature = ""
-        detail = json.dumps({"signature": signature, "extra": extra or {}}, ensure_ascii=False)
         with self._lock, closing(self._connect()) as conn, conn:
             conn.execute(
                 "INSERT INTO events (ts, kind, hitch_id, price, detail) VALUES (?,?,?,?,?)",
-                (utcnow(), kind, getattr(item, "hitch_id", ""), getattr(item, "price", 0), detail),
+                (
+                    utcnow(),
+                    kind,
+                    getattr(item, "hitch_id", ""),
+                    getattr(item, "price", 0),
+                    self._event_detail(item, extra),
+                ),
             )
 
+    def load_events(self, days: int = 30, limit: int = 60) -> list[dict[str, Any]]:
+        with self._lock, closing(self._connect()) as conn:
+            rows = conn.execute(
+                "SELECT ts, kind, hitch_id, price, detail FROM events"
+                " WHERE ts >= datetime('now', ?) ORDER BY ts DESC, id DESC LIMIT ?",
+                (f"-{int(days)} days", int(limit)),
+            ).fetchall()
+        out: list[dict[str, Any]] = []
+        for ts, kind, hitch_id, price, detail in rows:
+            try:
+                d = json.loads(detail or "{}")
+            except json.JSONDecodeError:
+                d = {}
+            out.append(
+                {
+                    "ts": ts,
+                    "kind": kind,
+                    "hitch_id": hitch_id,
+                    "price": price,
+                    "model": d.get("model", ""),
+                    "pickup_city": d.get("pickup_city", ""),
+                    "return_city": d.get("return_city", ""),
+                    "profile": d.get("profile", ""),
+                }
+            )
+        return out
+
     def prune(self, days: int = 30) -> None:
-        """硬删除：已过期/已关闭且超过保留期的记录；顺带清理旧到达日志。"""
+        """硬删除：已过期/已关闭且超过保留期的记录；顺带清理旧日志。"""
         with self._lock, closing(self._connect()) as conn, conn:
             conn.execute(
                 "DELETE FROM listings WHERE status IN ('expired','closed')"
@@ -261,6 +303,7 @@ class SqliteStore(BaseStore):
                 (f"-{int(days)} days",),
             )
             conn.execute("DELETE FROM arrivals WHERE ts < datetime('now', '-180 days')")
+            conn.execute("DELETE FROM events WHERE ts < datetime('now', '-90 days')")
 
 
 # ----------------------------------------------------------------- JSON 文件
@@ -324,6 +367,43 @@ class JsonStore(BaseStore):
             ts = _parse_iso_local(row[0])
             if ts and (now - ts).days <= days:
                 out.append((row[0], row[1]))
+        return out
+
+    def log_event(self, kind: str, item: Any, extra: dict | None = None) -> None:
+        data = self._read()
+        rows: list[dict[str, Any]] = data.get("events") or []
+        rows.append(
+            {
+                "ts": utcnow(),
+                "kind": kind,
+                "hitch_id": str(getattr(item, "hitch_id", "") or ""),
+                "price": getattr(item, "price", 0) or 0,
+                "model": getattr(item, "model_name", ""),
+                "pickup_city": getattr(item, "pickup_city", ""),
+                "return_city": getattr(item, "return_city", ""),
+                "profile": (extra or {}).get("profile", ""),
+            }
+        )
+        # 只保留 90 天内、最多 500 条，控制文件体积
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        kept: list[dict[str, Any]] = []
+        for row in rows:
+            ts = _parse_iso_local(row.get("ts"))
+            if ts and (now - ts).days <= 90:
+                kept.append(row)
+        data["events"] = kept[-500:]
+        self._atomic_write(json.dumps(data, ensure_ascii=False))
+
+    def load_events(self, days: int = 30, limit: int = 60) -> list[dict[str, Any]]:
+        data = self._read()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        out: list[dict[str, Any]] = []
+        for row in reversed(data.get("events") or []):  # 存储为正序，倒序取最近的
+            ts = _parse_iso_local(row.get("ts"))
+            if ts and (now - ts).days <= days:
+                out.append(row)
+            if len(out) >= limit:
+                break
         return out
 
     def _atomic_write(self, text: str) -> None:

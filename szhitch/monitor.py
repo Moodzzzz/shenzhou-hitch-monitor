@@ -468,6 +468,17 @@ class Monitor:
             if ev.profile:
                 stats.by_profile[ev.profile] = stats.by_profile.get(ev.profile, 0) + 1
 
+        # 预警流水：落库供面板「预警记录」展示（与是否配置通知渠道无关）。
+        # 演练模式（persist=False）不落，避免把推演当真实预警。
+        log_event = getattr(self.store, "log_event", None)
+        if persist and callable(log_event):
+            for ev in matched:
+                try:
+                    log_event(ev.kind, ev.item, {"profile": ev.profile})
+                except Exception as exc:
+                    self.log(f"  [预警流水] 写入失败: {exc}")
+                    break
+
         if matched:
             stats.notified = self.notify(self.build_message(matched, stats))
 

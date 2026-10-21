@@ -17,6 +17,24 @@ from .store import STATUS_AVAILABLE, STATUS_LOCKED, ListingState
 
 WEEKDAYS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
+#: 事件类型 → 面板展示文案（与 monitor.py 的 KIND_LABEL 保持同义，避免循环导入）
+ALERT_KIND_LABEL = {
+    "new": "新上线",
+    "relisted": "回到订单库",
+    "price_drop": "降价",
+    "locked": "被锁定",
+    "closed": "已关闭",
+    "expired": "已过期",
+}
+ALERT_KIND_ICON = {
+    "new": "🆕",
+    "relisted": "♻️",
+    "price_drop": "⬇️",
+    "locked": "🔒",
+    "closed": "🧹",
+    "expired": "⌛",
+}
+
 
 def _parse_iso(value: str) -> datetime | None:
     if not value:
@@ -112,6 +130,42 @@ def build_forecast(
     }
 
 
+def build_alerts(
+    events: Iterable[dict[str, Any]] | None,
+    *,
+    limit: int = 40,
+) -> dict[str, Any]:
+    """把状态库的事件流水整理成面板「预警记录」用的结构。"""
+    rows: list[dict[str, Any]] = []
+    for ev in list(events or [])[:limit]:
+        kind = str(ev.get("kind") or "")
+        pickup = str(ev.get("pickup_city") or "")
+        target = str(ev.get("return_city") or "")
+        rows.append(
+            {
+                "ts": str(ev.get("ts") or ""),
+                "kind": kind,
+                "label": ALERT_KIND_LABEL.get(kind, kind),
+                "icon": ALERT_KIND_ICON.get(kind, "•"),
+                "from": pickup,
+                "to": target,
+                "model": str(ev.get("model") or ""),
+                "price": ev.get("price") or 0,
+                "profile": str(ev.get("profile") or ""),
+                "id": str(ev.get("hitch_id") or ""),
+            }
+        )
+    return {
+        "recent": rows,
+        "total": len(rows),
+        "kinds": {
+            k: sum(1 for r in rows if r["kind"] == k)
+            for k in ALERT_KIND_LABEL
+            if any(r["kind"] == k for r in rows)
+        },
+    }
+
+
 def build_payload(
     items: list[HitchItem],
     states: dict[str, ListingState],
@@ -119,6 +173,7 @@ def build_payload(
     arrivals: Iterable[tuple[str, str]] | None = None,
     generated_at: datetime | None = None,
     profiles: Any = None,
+    events: Iterable[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """组装 dashboard.json。
 
@@ -290,7 +345,6 @@ def build_payload(
                 for i, p in enumerate(profiles.profiles)
             ],
         }
-
     return {
         "generated_at": now.strftime("%Y-%m-%d %H:%M"),
         "totals": {
@@ -317,5 +371,6 @@ def build_payload(
         "routes": routes,
         "models": [{"name": k, "count": v} for k, v in model_counter.most_common(60)],
         "watch": watch,
+        "alerts": build_alerts(events),
         "forecast": forecast,
     }
