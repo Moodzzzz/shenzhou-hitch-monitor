@@ -110,6 +110,7 @@ def _write_dashboard(monitor: Monitor, path: Path) -> dict:
     path.write_text(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8",
+        newline="\n",
     )
     return payload
 
