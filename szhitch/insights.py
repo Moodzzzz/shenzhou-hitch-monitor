@@ -170,7 +170,11 @@ def build_payload(
         cached = states.get(it.hitch_id)
         orig = it.original_price or (cached.orig_price if cached else 0) or 0
         info = parse_model(it.model_name, catalog)
-        hit, _, _ = profiles.evaluate(it) if profiles is not None else (False, "", "")
+        # 没配 watch_profiles 时不打 ★（空规则会命中一切，没有意义）
+        if profiles is not None and len(profiles):
+            hit, _, _ = profiles.evaluate(it)
+        else:
+            hit = False
         add_listing(
             {
                 "id": it.hitch_id,
