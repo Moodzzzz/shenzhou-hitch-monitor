@@ -14,7 +14,10 @@
   "watch": {
     "pickup_cities": [],
     "return_cities": [],
+    "any_cities": [],
     "routes": [],
+    "brands": [],
+    "exclude_brands": [],
     "models": [],
     "exclude_models": [],
     "max_price": 200,
@@ -27,6 +30,26 @@
     "date_from": null,
     "date_to": null
   },
+  "watch_profiles": [
+    {
+      "name": "成都出发",
+      "enabled": true,
+      "pickup_cities": ["成都"],
+      "max_price": 100
+    },
+    {
+      "name": "回丽江/三亚",
+      "enabled": true,
+      "routes": ["*→丽江", "*→三亚"],
+      "brands": ["宝马", "奔驰", "奥迪", "沃尔沃", "理想", "问界"]
+    },
+    {
+      "name": "豪车随便开",
+      "enabled": false,
+      "brands": ["保时捷", "路虎", "玛莎拉蒂"],
+      "max_price": 200
+    }
+  ],
   "behavior": {
     "first_run": "silent",
     "notify_new": true,

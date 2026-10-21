@@ -31,11 +31,13 @@
 | 零第三方依赖 | 纯 Python 标准库，云端不用 `pip install` |
 | 免登录 | 列表/详情/城市字典都不需要账号、Cookie 或签名 |
 | 全国覆盖 | 5 个请求拿全 950+ 条（`pageSize=200`） |
+| 城市全量 | 471 个城市的字典，含省份、全拼、首字母；中文 / `chengdu` / `cd` 都能搜到 |
+| 车型归一 | 把 `modelName` 拆成「品牌 + 车系」，剥掉 `2023` 年份前缀和「尊享版」这类后缀 |
 | 只推增量 | 按 `hitchId` 落库，新上线性推送；同一条降价也提示 |
 | 抗漏抓 | 全量翻页遇到数据位移会自动补一遍；消失的车再按线路复核 |
 | 首轮不刷屏 | 首次运行只建基线，不把 900+ 条历史当「新上线」 |
 | 邮件优先 | HTML 邮件，卡片式排版，手机上也好看 |
-| 可视面板 | 搜车型 / 城市、看价格、看「指定地点」的上新预报 |
+| 可视面板 | 时刻表式看板：全量城市选择器、品牌筛选、路线订阅、上新预报 |
 
 ---
 
@@ -59,8 +61,16 @@ python main.py serve --refresh           # 抓一轮 + 起本地看板 → http:
 查城市 ID、导出 CSV：
 
 ```bash
-python main.py cities 成都
-python main.py snapshot
+python main.py cities 成都          # 中文 / 全拼 / 首字母都能查
+python main.py cities cd            # 首字母：常德 / 成都 / 承德 / 昌都
+python main.py cities --letter L    # 按字母分组浏览
+python main.py snapshot             # 导出全国 CSV，标注命中的订阅
+```
+
+城市字典补拼音（只在生成时用 pypinyin，运行期无依赖）：
+
+```bash
+pip install pypinyin && python tools/build_cities.py
 ```
 
 ---
@@ -69,6 +79,10 @@ python main.py snapshot
 
 ![看板](docs/panel.png)
 
+城市选择器：471 城全量，中文 / 全拼 / 首字母都能搜，右侧是字母索引条。
+
+![城市选择器](docs/panel-city.png)
+
 面板是一个**静态页 + 一份 JSON**，所以两种用法都行：
 
 - 本地：`python main.py serve --refresh`（或 `once --export dashboard/dashboard.json` 后起任意静态服务）
@@ -76,14 +90,23 @@ python main.py snapshot
 
 功能：
 
-- **按车型搜索**：输入「宝马 / 理想 / 帕萨特」，实时过滤
-- **按地点筛选**：取车城市、还车城市、价格上限
-- **状态筛选**：全部 / 可预订 / 被锁定（被锁定的卡片是虚线 + 粉色徽标）
+- **城市选择器（全量 471 城）**：不依赖「当前有没有车」，没车的城市也在列表里，方便提前盯
+  - 中文 / 全拼 / 首字母三种搜法：`成都`、`chengdu`、`cd` 都命中
+  - 右侧 A–Z 索引条直接跳到字母段，按省份也能搜（输入「云南」）
+  - 每个城市后面标着当前取车 / 还车条数，一眼看出哪条线路有货
+- **车型筛选**：品牌 chip（大众 / 理想 / 宝马…，带条数）多选 + 车系关键词，两者可叠加
+- **路线筛选**：取车 + 还车两个选择器就是一条定向路线，或点「热门路线」直接跳进去
+- **只看关注**：服务端订阅命中的车会带 ★ 与左侧琥珀竖线
+- **关注条件 → 订阅**：选完条件后一键复制 `watch_profiles` / `watch` JSON，粘进 `config.json` 即生效
+- **链接可分享**：筛选条件写进 URL hash（`#from=成都&brands=大众`），发给别人/收藏都带着条件
 - **指定地点预报**：选一个取车城市，给出
   - 明天至少出现 1 条的概率（泊松分布 `P(X≥1)=1-e^(-λ)`）
   - 历史到达条数、日均上新、未来 7 天期望
   - 按星期的到达分布
 - **观测节奏**：每天新增多少条，跑得越久越准
+
+> 界面是「夜间发车牌」风格：路线做成虚线轨道，价格用等宽数字右对齐，好扫。
+> 移动端会把行折叠成两列，筛选栏取消吸顶。
 
 > 预报是**统计外推**，不是官方排期。刚跑第一天观测不足 1 天，会明确提示“观测不足”，不会编数。
 
@@ -101,8 +124,10 @@ python main.py snapshot
 |---|---|
 | `pickup_cities` | 取车城市，如 `["成都","重庆"]`；「成都」「成都市」都能匹配 |
 | `return_cities` | 还车城市 |
-| `routes` | 精确路线，如 `["成都→丽江"]` |
-| `models` / `exclude_models` | 车型关键词白名单/黑名单 |
+| `any_cities` | 取车**或**还车任一命中即可，适合「只想离开/到达某城」 |
+| `routes` | 精确路线，方向敏感：`["成都→丽江"]` 不会命中 `丽江→成都`；支持 `成都→*`、`*→丽江` |
+| `brands` / `exclude_brands` | 品牌白名单/黑名单，如 `["理想","宝马"]`（由车型名解析，见下） |
+| `models` / `exclude_models` | 车型关键词白名单/黑名单，如 `["帕萨特","L7"]` |
 | `only_special` / `special_price` | 只推特价，默认 ≤100 元 |
 | `max_price` / `min_price` | 总价区间 |
 | `max_price_per_day` | 日均价上限 |
@@ -112,11 +137,49 @@ python main.py snapshot
 ```json
 "watch": {
   "pickup_cities": ["成都"],
+  "brands": ["理想", "宝马"],
+  "routes": ["成都→*"],
   "max_price": 100,
-  "max_price_per_day": 60,
-  "exclude_models": ["大众"]
+  "exclude_brands": ["大众"]
 }
 ```
+
+### `watch_profiles` —— 多组订阅
+
+想同时盯几条互不相干的线路时用它。**非空时优先于 `watch`**，任一订阅命中就推送，
+消息里会写「🎯 订阅：成都出发」，面板也会把这些车标成 ★。
+
+```json
+"watch_profiles": [
+  { "name": "成都出发", "pickup_cities": ["成都"], "max_price": 100 },
+  { "name": "回丽江/三亚", "routes": ["*→丽江", "*→三亚"],
+    "brands": ["宝马", "奔驰", "奥迪", "沃尔沃", "理想", "问界"] },
+  { "name": "先别推这个", "enabled": false, "brands": ["大众"] }
+]
+```
+
+| 字段 | 说明 |
+|---|---|
+| `name` | 订阅名，出现在推送与面板里；缺省为「订阅1」 |
+| `enabled` | `false` 时跳过这一组 |
+| 其余字段 | 与 `watch` 完全一致 |
+
+### 车型品牌是怎么认的
+
+`modelName` 是「品牌+车系+配置」拼在一起的字符串，程序按别名表拆开：
+
+| 原始车型名 | 品牌 | 车系 |
+|---|---|---|
+| `2023沃尔沃S90` | 沃尔沃 | S90 |
+| `广汽传祺M8尊享版` | 传祺 | M8 |
+| `问界M9六座版` | 问界 | M9 |
+| `吉利银河星耀8` | 吉利银河 | 星耀8 |
+| `长安深蓝S07` | 深蓝 | S07 |
+
+- 长别名优先：`吉利银河` 不会被 `吉利` 抢走，`奇瑞捷途` 归到 `捷途`
+- 年份前缀（`2023`）与配置后缀（尊享版/六座版/两驱/乾崑…）会被剥掉
+- 品牌表在 `data/brands.json`，加新品牌直接往里补 `name` + `aliases` 即可
+- 面板与推送里的品牌统计都基于这套解析，不是字符串包含
 
 ### `behavior` —— 怎么推
 
@@ -244,13 +307,30 @@ docker run -d --name szhitch --restart always \
 
 ## 常见问题
 
-**Q：面板说「被锁定」，但 App 里明明还能订？**
-这是全量翻页的漏抓导致的误判。现已修复：消失的车会按「取车城市 + 还车城市」定向复查，查得到就撤销判定并记 `[纠正]` 日志；而且要连续两轮查不到才推送。历史遗留的误判可手动修：
+**Q：面板说「被锁定」，但 App 里明明还能订？**这是全量翻页的漏抓导致的误判。现已修复：消失的车会按「取车城市 + 还车城市」定向复查，查得到就撤销判定并记 `[纠正]` 日志；而且要连续两轮查不到才推送。历史遗留的误判可手动修：
 
 ```bash
 python main.py recheck --dry-run   # 先看
 python main.py recheck             # 写回
 ```
+
+**Q：城市为什么是 471 个？会不会漏掉？**
+471 是官方 `cityList` 接口返回的全量（`allCities` 471 + `hotCities` 24，去重后 471）。
+面板里的城市选择器不再只列「当前有车的城市」，而是整份字典 —— 现在在售覆盖 190 多个城市，
+剩下 200 多个暂时没车，但你想盯的时候能选到。万一列表里冒出新城市而字典还没收录，
+`insights.py` 会把它补进 `city_dict`（字母归 `#`），面板不会显示不出来。
+
+**Q：路线写了 `成都→丽江`，为什么 `丽江→成都` 的车也推了？**
+现在的实现是方向敏感的，不会。早期版本把两个城市名当子串在整串里找，反向线路会误命中，
+这个问题已修，并在 `tests/test_catalog_rules.py` 里用 `test_direction_is_respected` 锁死。
+反过来，如果你**想**要双向，写两条：`["成都→丽江","丽江→成都"]`，或者用 `any_cities`。
+
+**Q：`watch` 和 `watch_profiles` 同时配了，以哪个为准？**
+`watch_profiles` 非空时只用订阅分组，`watch` 被忽略；想回到单规则模式就把 `watch_profiles` 清空。
+
+**Q：面板里「只看关注」为什么是空的？**
+`★` 来自服务端订阅（`watch_profiles`）的命中结果，而面板数据是监控跑完写出来的。
+先在面板里选好条件、复制 `watch_profiles` 进 `config.json`，跑一轮 `python main.py once --export dashboard/dashboard.json` 就会标出来。
 
 **Q：为什么第一次正式运行没有推送？**
 首轮只建基线，否则 950+ 条会刷屏，之后也分不清哪些是真新出现。想看效果用 `--dry-run`。
@@ -274,18 +354,21 @@ shenzhou-hitch-monitor/
 ├── szhitch/
 │   ├── gateway.py          网关客户端 + 抗漏抓翻页
 │   ├── models.py           HitchItem 数据模型
-│   ├── rules.py            筛选规则
+│   ├── catalog.py          城市索引（拼音/首字母/省份）+ 车型品牌解析
+│   ├── rules.py            筛选规则、路线方向匹配、订阅分组
 │   ├── store.py            状态机 + 到达日志（SQLite / JSON / OSS）
 │   ├── monitor.py          生命周期判定、文案、邮件 HTML
 │   ├── insights.py         面板数据 + 预报
 │   ├── notify.py           邮件/企微/飞书/钉钉/Bark/Server酱
 │   └── config.py           配置加载
 ├── dashboard/              静态看板（index.html + dashboard.json）
+├── tools/build_cities.py   生成城市字典（拼音/首字母，需 pypinyin）
 ├── cloud/                  云函数入口
 ├── deploy/systemd/         systemd unit
-├── data/cities.json        471 个城市字典
+├── data/cities.json        471 个城市 + 省份 + 拼音 + 首字母
+├── data/brands.json        品牌别名表（约 100 个品牌）
 ├── docs/                   逆向报告 + 面板截图
-└── tests/                  25 项离线测试（无需联网）
+└── tests/                  58 项离线测试（无需联网）
 ```
 
 ```bash

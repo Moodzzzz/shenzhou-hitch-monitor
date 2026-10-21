@@ -12,18 +12,24 @@ from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from szhitch.catalog import (
+    CITY_FILE,
+    collect_city_payload,
+    enrich_cities,
+    load_cities,
+    save_cities,
+)
 from szhitch.config import dump_default, load_config
 from szhitch.gateway import GatewayClient
 from szhitch.insights import build_payload
 from szhitch.models import HitchItem
 from szhitch.monitor import Monitor
 from szhitch.notify import Message, build_notifiers
-from szhitch.rules import RuleSet
+from szhitch.rules import build_profiles
 from szhitch.store import create_store
 
 ROOT = Path(__file__).resolve().parent
 DEFAULT_CONFIG = ROOT / "config.json"
-CITY_FILE = ROOT / "data" / "cities.json"
 DASHBOARD_DIR = ROOT / "dashboard"
 DASHBOARD_DATA = DASHBOARD_DIR / "dashboard.json"
 
@@ -52,44 +58,42 @@ def cmd_init(args) -> int:
 
 
 def cmd_cities(args) -> int:
-    if not CITY_FILE.exists():
-        print(f"缺少城市字典 {CITY_FILE}，请先执行 python main.py refresh-cities")
+    index = load_cities(CITY_FILE)
+    if not len(index):
+        print(f"缺少城市字典 {CITY_FILE}，请先执行 python tools/build_cities.py")
         return 1
-    data = json.loads(CITY_FILE.read_text("utf-8"))
-    cities = data.get("cities") or []
     query = (args.query or "").strip()
-    if query:
-        cities = [
-            c for c in cities
-            if query in c["cityName"] or query.lower() in (c.get("enName") or "").lower()
-        ]
-    print(f"共 {len(cities)} 个城市")
+    if args.letter:
+        groups = index.by_letter()
+        cities = groups.get(args.letter.upper(), [])
+        print(f"字母 {args.letter.upper()} 下共 {len(cities)} 个城市")
+    elif query:
+        cities = index.search(query, limit=args.limit)
+        print(f"「{query}」命中 {len(cities)} 个城市（支持中文/全拼/首字母/省份）")
+    else:
+        cities = index.cities
+        print(f"共 {len(index)} 个城市")
+
     for c in cities[: args.limit]:
-        print(f"  {c['cityId']:>4}  {c['cityName']:<8} {c.get('enName', ''):<16} {c.get('code', '')}")
+        print(
+            f"  {str(c['cityId']):>5}  {c['cityName']:<8} {c.get('initials', ''):<6}"
+            f"{c.get('pinyin', ''):<16} {c.get('province', ''):<6} {c.get('letter', '')}"
+        )
     if len(cities) > args.limit:
-        print(f"  …… 仅显示前 {args.limit} 条")
+        print(f"  …… 仅显示前 {args.limit} 条（--limit 调整）")
     return 0
 
 
 def cmd_refresh_cities(args) -> int:
     client = GatewayClient()
-    data = client.cities()
-    flat = [
-        {
-            "cityId": c.get("cityId"),
-            "cityName": c.get("cityName"),
-            "enName": c.get("enName", ""),
-            "code": c.get("code", ""),
-        }
-        for c in (data.get("allCities") or [])
-    ]
-    CITY_FILE.parent.mkdir(parents=True, exist_ok=True)
-    CITY_FILE.write_text(
-        json.dumps({"source": "/action/carrctapi/order/cityList/v1", "cities": flat},
-                   ensure_ascii=False, indent=1),
-        encoding="utf-8",
-    )
-    print(f"已更新城市字典：{len(flat)} 个城市 → {CITY_FILE}")
+    raw = client.cities()
+    previous = {str(c.get("cityId")): c for c in load_cities(CITY_FILE).cities}
+    cities = enrich_cities(collect_city_payload(raw), previous)
+    path = save_cities(cities)
+    missing_pinyin = sum(1 for c in cities if not c.get("pinyin"))
+    print(f"已更新城市字典：{len(cities)} 个城市 → {path}")
+    if missing_pinyin:
+        print(f"  提示：{missing_pinyin} 个城市没有拼音，执行 python tools/build_cities.py 补齐")
     return 0
 
 
@@ -101,6 +105,7 @@ def _write_dashboard(monitor: Monitor, path: Path) -> dict:
         monitor.last_items,
         monitor.last_states,
         arrivals=monitor.store.load_arrivals(180),
+        profiles=monitor.profiles,
     )
     path.write_text(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
@@ -116,7 +121,7 @@ def cmd_once(args) -> int:
         # 演练时按「正常轮次」推演，方便看清当前能命中什么
         cfg["behavior"]["first_run"] = "notify"
     monitor = Monitor(cfg)
-    print(f"筛选条件：{monitor.rules.describe()}")
+    print(f"筛选条件：{monitor.profiles.describe()}")
     if args.dry_run:
         print("演练模式：不写状态、不消耗「新增」事件\n")
     stats = monitor.run_once(persist=not args.dry_run, ignore_state=args.dry_run)
@@ -204,7 +209,7 @@ def cmd_watch(args) -> int:
     cfg = _cfg(args)
     interval = args.interval or int(cfg["poll"]["interval_seconds"])
     monitor = Monitor(cfg)
-    print(f"监控启动 · 每 {interval}s 轮询一次 · 筛选：{monitor.rules.describe()}")
+    print(f"监控启动 · 每 {interval}s 轮询一次 · 筛选：{monitor.profiles.describe()}")
     print("Ctrl+C 退出")
 
     stopping = {"flag": False}
@@ -247,7 +252,7 @@ def cmd_snapshot(args) -> int:
         return_city_id=cfg["source"].get("return_city_id"),
     )
     items = [HitchItem.from_api(p) for p in raw]
-    rules = RuleSet.from_config(cfg.get("watch") or {})
+    profiles = build_profiles(cfg)
     out_dir = ROOT / "data" / "snapshots"
     out_dir.mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d-%H%M")
@@ -255,11 +260,12 @@ def cmd_snapshot(args) -> int:
     with csv_path.open("w", newline="", encoding="utf-8-sig") as fh:
         writer = csv.writer(fh)
         writer.writerow(["hitchId", "取车城市", "还车城市", "车型", "价格", "取车日", "还车日",
-                         "天数", "是否命中规则"])
+                         "天数", "命中订阅"])
         for it in sorted(items, key=lambda x: (x.pickup_city, x.price)):
-            ok, _ = rules.evaluate(it)
+            ok, profile, _ = profiles.evaluate(it)
             writer.writerow([it.hitch_id, it.pickup_city, it.return_city, it.model_name, it.price,
-                             it.begin_date or "", it.end_date or "", it.days or "", "是" if ok else ""])
+                             it.begin_date or "", it.end_date or "", it.days or "",
+                             profile if ok else ""])
     print(f"全国 {total} 条，已导出 {len(items)} 条 → {csv_path}")
     return 0
 
@@ -298,8 +304,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--force", action="store_true")
     p.set_defaults(func=cmd_init)
 
-    p = sub.add_parser("cities", help="查询城市 ID")
+    p = sub.add_parser("cities", help="查询城市 ID（支持中文/全拼/首字母/省份）")
     p.add_argument("query", nargs="?", default="")
+    p.add_argument("--letter", default="", help="按首字母分组查看，如 --letter C")
     p.add_argument("--limit", type=int, default=40)
     p.set_defaults(func=cmd_cities)
 
