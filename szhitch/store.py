@@ -329,7 +329,7 @@ class JsonStore(BaseStore):
     def _atomic_write(self, text: str) -> None:
         fd, tmp = tempfile.mkstemp(dir=str(self.path.parent), suffix=".tmp")
         try:
-            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as fh:
                 fh.write(text)
             os.replace(tmp, self.path)
         finally:

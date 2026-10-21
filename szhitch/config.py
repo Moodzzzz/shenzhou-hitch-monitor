@@ -147,5 +147,7 @@ def load_config(path: str | Path | None = None) -> dict[str, Any]:
 def dump_default(path: str | Path) -> Path:
     p = Path(path)
     p.parent.mkdir(parents=True, exist_ok=True)
-    p.write_text(json.dumps(DEFAULT_CONFIG, ensure_ascii=False, indent=2), encoding="utf-8")
+    p.write_text(
+        json.dumps(DEFAULT_CONFIG, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n"
+    )
     return p

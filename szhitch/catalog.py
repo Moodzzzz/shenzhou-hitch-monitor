@@ -256,7 +256,9 @@ def save_cities(cities: list[dict[str, Any]], path: str | Path | None = None) ->
         "count": len(cities),
         "cities": cities,
     }
-    p.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
+    p.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8", newline="\n"
+    )
     return p
 
 
