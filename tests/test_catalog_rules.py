@@ -4,7 +4,9 @@
 """
 from __future__ import annotations
 
+import sqlite3
 import sys
+import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
@@ -20,10 +22,11 @@ from szhitch.catalog import (  # noqa: E402
     normalize_city,
     province_of,
 )
-from szhitch.insights import build_payload  # noqa: E402
+from szhitch.insights import build_alerts, build_payload  # noqa: E402
 from szhitch.models import HitchItem  # noqa: E402
 from szhitch.monitor import Event, Monitor, ScanStats  # noqa: E402
 from szhitch.rules import ProfileSet, RuleSet, build_profiles, parse_route, route_match  # noqa: E402
+from szhitch.store import JsonStore, SqliteStore  # noqa: E402
 
 
 def item(frm="成都", to="丽江", model="大众朗逸", price=100, begin=None):
@@ -259,6 +262,90 @@ class TestPayload(unittest.TestCase):
         payload = build_payload([], {})
         self.assertEqual(payload["totals"]["live"], 0)
         self.assertEqual(len(payload["city_dict"]), len(load_cities()))
+
+    def test_no_profiles_means_no_hit(self):
+        # 没配订阅时不应把全部车都标成「命中」（回落规则为空 = 匹配一切）
+        payload = build_payload([item("成都", "丽江")], {}, profiles=build_profiles({"watch": {}}))
+        self.assertNotIn("hit", payload["listings"][0])
+        self.assertEqual(payload["totals"]["hit"], 0)
+        self.assertFalse(payload["watch"]["active"])
+
+
+class TestAlerts(unittest.TestCase):
+    """预警流水：状态库 → 面板。"""
+
+    @staticmethod
+    def _alert(kind="new", model="理想L7", frm="成都", to="丽江",
+               price=100, profile="成都出发", ts="2026-10-21T08:00:00Z"):
+        return {"ts": ts, "kind": kind, "hitch_id": "1", "price": price,
+                "model": model, "pickup_city": frm, "return_city": to, "profile": profile}
+
+    def test_payload_includes_alert_log(self):
+        row = build_alerts([self._alert()])["recent"][0]
+        self.assertEqual(row["label"], "新上线")
+        self.assertEqual(row["icon"], "🆕")
+        self.assertEqual(row["from"], "成都")
+        self.assertEqual(row["to"], "丽江")
+        self.assertEqual(row["profile"], "成都出发")
+        self.assertEqual(row["price"], 100)
+
+    def test_alert_kinds_counted(self):
+        data = build_alerts([self._alert(), self._alert(kind="locked"), self._alert(kind="locked")])
+        self.assertEqual(data["kinds"], {"new": 1, "locked": 2})
+        self.assertEqual(data["total"], 3)
+
+    def test_alert_limit(self):
+        rows = [self._alert(ts=f"2026-10-{d:02d}T08:00:00Z") for d in range(1, 11)]
+        self.assertEqual(build_alerts(rows, limit=5)["total"], 5)
+
+    def test_empty_events(self):
+        self.assertEqual(build_alerts(None)["recent"], [])
+        self.assertEqual(build_alerts(None)["total"], 0)
+
+    def test_payload_carries_alerts(self):
+        payload = build_payload([item("成都", "丽江")], {}, events=[self._alert()])
+        self.assertEqual(len(payload["alerts"]["recent"]), 1)
+        self.assertEqual(payload["alerts"]["recent"][0]["model"], "理想L7")
+
+
+class TestStoreEvents(unittest.TestCase):
+    """事件流水在两种存储后端里都能写读。"""
+
+    def test_sqlite_events_roundtrip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = SqliteStore(Path(tmp) / "state.db")
+            store.log_event("new", HitchItem(hitch_id="9", model_name="理想L7", price=100,
+                                             pickup_city="成都", return_city="丽江"),
+                            {"profile": "成都出发"})
+            store.log_event("locked", HitchItem(hitch_id="8", model_name="大众朗逸", price=50,
+                                                pickup_city="重庆", return_city="三亚"))
+            events = store.load_events(days=30, limit=10)
+            self.assertEqual(len(events), 2)
+            self.assertEqual(events[0]["kind"], "locked")      # 倒序：最近在前
+            self.assertEqual(events[1]["profile"], "成都出发")
+            self.assertEqual(events[1]["model"], "理想L7")
+
+    def test_json_events_roundtrip(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = JsonStore(Path(tmp) / "state.json")
+            for i in range(7):
+                store.log_event("new", HitchItem(hitch_id=str(i), model_name="理想L7", price=100,
+                                                 pickup_city="成都", return_city="丽江"),
+                                {"profile": "p"})
+            events = store.load_events(days=30, limit=5)
+            self.assertEqual(len(events), 5)
+            self.assertEqual(events[0]["hitch_id"], "6")       # 最近一条在前
+
+    def test_events_pruned_after_days(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            store = SqliteStore(Path(tmp) / "state.db")
+            store.log_event("new", HitchItem(hitch_id="1", model_name="理想L7", price=100,
+                                             pickup_city="成都", return_city="丽江"))
+            conn = sqlite3.connect(store.path)
+            with conn:
+                conn.execute("UPDATE events SET ts = datetime('now', '-100 days')")
+            conn.close()
+            self.assertEqual(store.load_events(days=30), [])
 
 
 if __name__ == "__main__":
