@@ -27,6 +27,12 @@ from szhitch.models import HitchItem  # noqa: E402
 from szhitch.monitor import Event, Monitor, ScanStats  # noqa: E402
 from szhitch.rules import ProfileSet, RuleSet, build_profiles, parse_route, route_match  # noqa: E402
 from szhitch.store import JsonStore, SqliteStore  # noqa: E402
+from szhitch.subscriptions import (  # noqa: E402
+    is_subscription_title,
+    new_issue_url,
+    parse_issue,
+    parse_issue_body,
+)
 
 
 def item(frm="成都", to="丽江", model="大众朗逸", price=100, begin=None):
@@ -346,6 +352,69 @@ class TestStoreEvents(unittest.TestCase):
                 conn.execute("UPDATE events SET ts = datetime('now', '-100 days')")
             conn.close()
             self.assertEqual(store.load_events(days=30), [])
+
+
+class TestSubscriptions(unittest.TestCase):
+    """订阅中心：Issue 正文 → 订阅规则。"""
+
+    BODY = (
+        "<!-- szhitch-subscription-v1 -->\n"
+        "本 Issue 是一条预警订阅。\n\n"
+        "```json\n"
+        '{"name": "成都出发", "email": "me@example.com", "pickup_cities": ["成都"],\n'
+        ' "max_price": 100, "hack_key": "should-be-dropped"}\n'
+        "```\n"
+    )
+
+    def test_title_prefix_recognised(self):
+        self.assertTrue(is_subscription_title("[订阅] 成都出发"))
+        self.assertFalse(is_subscription_title("随便聊聊"))
+
+    def test_parse_body_json(self):
+        profile = parse_issue_body(self.BODY)
+        self.assertIsNotNone(profile)
+        self.assertEqual(profile["name"], "成都出发")
+        self.assertEqual(profile["email"], "me@example.com")
+        self.assertEqual(profile["pickup_cities"], ["成都"])
+        self.assertNotIn("hack_key", profile)          # 白名单之外一律丢弃
+
+    def test_parse_body_rejects_invalid(self):
+        self.assertIsNone(parse_issue_body("```json\nnot json\n```"))
+        self.assertIsNone(parse_issue_body("```json\n{\"foo\": 1}\n```"))   # 没有任何筛选条件
+        self.assertIsNone(parse_issue_body("没有代码块"))
+
+    def test_parse_issue_object(self):
+        sub = parse_issue({"number": 7, "title": "[订阅] 回丽江",
+                           "body": self.BODY.replace("成都出发", "回丽江")})
+        self.assertIsNotNone(sub)
+        self.assertEqual(sub["__issue"], 7)
+        self.assertEqual(sub["__title"], "[订阅] 回丽江")
+        self.assertEqual(sub["__email"], "me@example.com")
+
+    def test_parse_issue_skips_normal_issue(self):
+        # 没有标题前缀、也没有订阅标记的 Issue 一律不算订阅
+        self.assertIsNone(parse_issue({"number": 8, "title": "报个错", "body": "就是聊聊"}))
+        self.assertIsNone(parse_issue({"number": 9, "title": "[订阅] 空的", "body": "没有 json"}))
+
+    def test_parse_issue_keeps_marker_even_if_title_renamed(self):
+        # 用户改了标题但保留订阅标记 → 仍视为订阅
+        sub = parse_issue({"number": 10, "title": "盯成都出发的车",
+                           "body": self.BODY})
+        self.assertIsNotNone(sub)
+        self.assertEqual(sub["__issue"], 10)
+
+    def test_new_issue_url_encodes(self):
+        url = new_issue_url("Moodzzzz/shenzhou-hitch-monitor",
+                            {"name": "成都出发", "pickup_cities": ["成都"], "max_price": 100})
+        self.assertIn("https://github.com/Moodzzzz/shenzhou-hitch-monitor/issues/new", url)
+        self.assertIn("title=%5B%E8%AE%A2%E9%98%85%5D", url)
+        self.assertIn("szhitch-subscription-v1", url)
+        self.assertIn("max_price", url)
+
+    def test_profile_email_key_is_ignored_by_ruleset(self):
+        rules = RuleSet.from_config({"name": "x", "email": "me@example.com",
+                                     "pickup_cities": ["成都"]})
+        self.assertTrue(rules.evaluate(item("成都", "丽江"))[0])
 
 
 if __name__ == "__main__":
