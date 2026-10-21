@@ -29,6 +29,7 @@
 | | |
 |---|---|
 | 零第三方依赖 | 纯 Python 标准库，云端不用 `pip install` |
+| 一键订阅 | 面板上填条件点一下 → 存成仓库 Issue，监控自动读取；**关闭 Issue 即退订** |
 | 免登录 | 列表/详情/城市字典都不需要账号、Cookie 或签名 |
 | 全国覆盖 | 5 个请求拿全 950+ 条（`pageSize=200`） |
 | 城市全量 | 471 个城市的字典，含省份、全拼、首字母；中文 / `chengdu` / `cd` 都能搜到 |
@@ -37,11 +38,16 @@
 | 抗漏抓 | 全量翻页遇到数据位移会自动补一遍；消失的车再按线路复核 |
 | 首轮不刷屏 | 首次运行只建基线，不把 900+ 条历史当「新上线」 |
 | 邮件优先 | HTML 邮件，卡片式排版，手机上也好看 |
-| 可视面板 | 时刻表式看板：全量城市选择器、品牌筛选、路线订阅、预警监控 |
+| 可视面板 | 时刻表式看板：全量城市选择器、品牌筛选、预警监控 |
 
 ---
 
 ## 5 分钟上手
+
+**不想碰命令行？** 打开看板 → 左侧选好城市 / 路线 / 品牌 → 填邮箱 → 点「⚡ 一键订阅」：
+条件会存成仓库里的一个 Issue，下一轮监控自动按它推送，**关闭 Issue 即退订**。
+邮件提醒：命中时监控会在订阅 Issue 下回执（GitHub 自动向订阅者发邮件，零配置）；
+若在 Secrets 里配置了 SMTP（`SZHITCH_SMTP_HOST/_PORT/_USER/_PASS/_TO`），还会直发邮件。
 
 ```bash
 python main.py init                      # 生成配置
@@ -335,6 +341,10 @@ python main.py recheck             # 写回
 **Q：为什么第一次正式运行没有推送？**
 首轮只建基线，否则 950+ 条会刷屏，之后也分不清哪些是真新出现。想看效果用 `--dry-run`。
 
+**Q：一键订阅按钮是灰的？**
+面板数据里没有仓库信息。GitHub Actions 部署时会自动带上（`GITHUB_REPOSITORY`）；
+本地 `python main.py serve` 预览时需在 `config.json` 里加 `"subscribe": {"repo": "你的用户名/仓库名"}`。
+
 **Q：预警记录为什么是空的？**
 记录来自监控每轮的命中流水。先在 `config.json` 配好 `watch_profiles`（或用面板生成），跑一轮
 `python main.py once` 之后就有记录；GitHub Actions 部署用 cache 保存状态，换仓库存（OSS）不会丢。
@@ -357,7 +367,8 @@ shenzhou-hitch-monitor/
 │   ├── models.py           HitchItem 数据模型
 │   ├── catalog.py          城市索引（拼音/首字母/省份）+ 车型品牌解析
 │   ├── rules.py            筛选规则、路线方向匹配、订阅分组
-│   ├── store.py            状态机 + 到达日志（SQLite / JSON / OSS）
+│   ├── store.py            状态机 + 到达/预警日志（SQLite / JSON / OSS）
+│   ├── subscriptions.py    订阅中心：GitHub Issue 订阅的读取与回执
 │   ├── monitor.py          生命周期判定、文案、邮件 HTML
 │   ├── insights.py         面板数据 + 预警记录
 │   ├── notify.py           邮件/企微/飞书/钉钉/Bark/Server酱
@@ -369,7 +380,7 @@ shenzhou-hitch-monitor/
 ├── data/cities.json        471 个城市 + 省份 + 拼音 + 首字母
 ├── data/brands.json        品牌别名表（约 100 个品牌）
 ├── docs/                   逆向报告 + 面板截图
-└── tests/                  68 项离线测试（无需联网）
+└── tests/                  76 项离线测试（无需联网）
 ```
 
 ```bash

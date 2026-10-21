@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import signal
 import sys
 import time
@@ -97,6 +98,11 @@ def cmd_refresh_cities(args) -> int:
     return 0
 
 
+def _dashboard_repo(cfg: dict) -> str:
+    """面板「一键订阅」要用的仓库：配置优先，Actions 里自动取 GITHUB_REPOSITORY。"""
+    return str(cfg.get("subscribe", {}).get("repo") or "") or os.environ.get("GITHUB_REPOSITORY", "")
+
+
 def _write_dashboard(monitor: Monitor, path: Path) -> dict:
     """把最近一轮结果写成面板数据（面板是静态页，只读这个 JSON）。"""
     path = Path(path)
@@ -109,6 +115,7 @@ def _write_dashboard(monitor: Monitor, path: Path) -> dict:
         events=getattr(monitor.store, "load_events", lambda **_: [])(
             days=30, limit=40
         ),
+        repo=_dashboard_repo(monitor.cfg),
     )
     path.write_text(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
