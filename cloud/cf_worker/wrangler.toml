@@ -1,0 +1,19 @@
+# 邮箱订阅 Worker。部署：把下面的 <...> 换成自己的值，然后在本目录执行
+#   npx wrangler@4.148.0 kv namespace create szhitch-subs   # 拿到 KV id 填到下面
+#   npx wrangler@4.148.0 deploy
+#   npx wrangler@4.148.0 secret put RESEND_API_KEY   # Resend 发信 key
+#   npx wrangler@4.148.0 secret put ADMIN_TOKEN      # 与仓库 Secret SZHITCH_SUB_TOKEN 相同
+name = "szhitch-sub"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = false
+
+# *.workers.dev 在国内基本打不开，必须挂自己的域名（域名需托管在 Cloudflare）
+routes = [{ pattern = "<sub-api.example.com>", custom_domain = true }]
+
+kv_namespaces = [{ binding = "SUBS", id = "<KV namespace id>" }]
+
+[vars]
+MAIL_FROM = "<alert@example.com>"                 # Resend 里验证过的域名下的地址
+PUBLIC_URL = "https://<sub-api.example.com>"
+ALLOWED_ORIGINS = "https://<用户名>.github.io"     # 看板所在域名，多个用英文逗号分隔
