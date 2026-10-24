@@ -76,14 +76,17 @@ class GatewayClient:
         min_interval: float = 1.2,
         user_agent: str = DEFAULT_UA,
         gateway_url: str = GATEWAY_URL,
+        proxy_pool: Any = None,
     ) -> None:
         self.timeout = timeout
         self.retries = max(0, retries)
         self.min_interval = max(0.0, min_interval)
         self.user_agent = user_agent
         self.gateway_url = gateway_url
+        self.proxy_pool = proxy_pool
         self._last_call = 0.0
         self.request_count = 0
+        self.proxy_hits = 0
 
     # ---------------------------------------------------------------- 传输层
 
@@ -114,10 +117,28 @@ class GatewayClient:
                 "X-Requested-With": "XMLHttpRequest",
             },
         )
+        proxy = self.proxy_pool.get() if self.proxy_pool is not None else None
+        if proxy:
+            # 本请求单独走代理；失败由上层记账并换下一个出口
+            opener = urllib.request.build_opener(
+                urllib.request.ProxyHandler({"http": proxy, "https": proxy})
+            )
+            self.proxy_hits += 1
+        else:
+            opener = urllib.request.build_opener()
         self._throttle()
         self.request_count += 1
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            return resp.read().decode("utf-8", "replace")
+        started = time.monotonic()
+        try:
+            with opener.open(req, timeout=self.timeout) as resp:
+                text = resp.read().decode("utf-8", "replace")
+        except Exception:
+            if self.proxy_pool is not None:
+                self.proxy_pool.report(proxy, False)
+            raise
+        if self.proxy_pool is not None and proxy:
+            self.proxy_pool.report(proxy, True, time.monotonic() - started)
+        return text
 
     # ---------------------------------------------------------------- 业务层
 
@@ -128,12 +149,14 @@ class GatewayClient:
         """
         params = params or {}
         last_err: Exception | None = None
+        # 风控/限流类状态码换出口重试；这类响应在代理池场景下很常见
+        retryable = {403, 407, 429, 500, 502, 503, 504}
         for attempt in range(self.retries + 1):
             try:
                 text = self._post(uri, params)
             except urllib.error.HTTPError as exc:
                 last_err = exc
-                if exc.code < 500 or attempt == self.retries:
+                if exc.code not in retryable or attempt == self.retries:
                     raise GatewayError(
                         f"HTTP {exc.code}", uri=uri, code=exc.code
                     ) from exc
