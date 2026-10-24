@@ -8,16 +8,24 @@ import json
 import sys
 import tempfile
 import unittest
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from szhitch.models import HitchItem, parse_date, parse_int  # noqa: E402
 from szhitch.monitor import Event, Monitor, ScanStats  # noqa: E402
+from szhitch.rentals import (  # noqa: E402
+    RentalCity,
+    apply_service_fees,
+    build_payload as build_rental_payload,
+    parse_city_deals,
+)
 from szhitch.rules import RuleSet  # noqa: E402
 from szhitch.store import JsonStore, ListingState, SqliteStore  # noqa: E402
+from szhitch.subscriptions import parse_issue_body  # noqa: E402
 
 FIXTURE = Path(__file__).parent / "fixtures" / "hitch_list.json"
 
@@ -176,7 +184,24 @@ class TestRules(unittest.TestCase):
 
 
 class TestMonitorFlow(unittest.TestCase):
+    @staticmethod
+    def _make_live(items):
+        """录制数据是 2026-10-20；把同一批车平移到未来，避免测试随时间过期。"""
+        raw_begin = next((x for x in items if x.get("beginTime") == "2026.10.20"), None)
+        if raw_begin:
+            target = date.today() + timedelta(days=3)
+            delta = (target - date(2026, 10, 20)).days
+            for item in items:
+                begin = parse_date(item.get("beginTime"))
+                end = parse_date(item.get("endTime"))
+                if begin:
+                    item["beginTime"] = (begin + timedelta(days=delta)).strftime("%Y.%m.%d")
+                if end:
+                    item["endTime"] = (end + timedelta(days=delta)).strftime("%Y.%m.%d")
+        return items
+
     def _monitor(self, items, store, cfg=None, client=None):
+        items = self._make_live(items)
         conf = json.loads(json.dumps(BASE_CFG))
         conf.update(cfg or {})
         mon = Monitor(conf, client=client or FakeClient(items), store=store,
@@ -355,6 +380,128 @@ class TestStores(unittest.TestCase):
             store = SqliteStore(Path(tmp) / "state.db")
             store.save({"1": ListingState(hitch_id="1", price=50, active=False)})
             self.assertFalse(store.load()["1"].active)
+
+
+class TestRentals(unittest.TestCase):
+    @staticmethod
+    def _content(price="24", daily="120", model_id=2011, name="日产轩逸"):
+        return {
+            "deptHangModels": [
+                {
+                    "deptName": "高新区自助点",
+                    "deptDistance": "1.2km",
+                    "models": [
+                        {
+                            "modelId": model_id,
+                            "modelGroupId": 2,
+                            "modelName": name,
+                            "modelDesc": "1.6 自动 | 三厢5座",
+                            "modelImgUrl": "https://example.com/car.png",
+                            "packagePrice": price,
+                            "lowPrice": int(price),
+                            "dailyPrice": daily,
+                            "bookFlag": True,
+                        }
+                    ],
+                }
+            ]
+        }
+
+    def test_parse_city_deals_uses_package_price(self):
+        rows, depts, models = parse_city_deals(
+            self._content(), city="北京", city_id="1", days=30
+        )
+        self.assertEqual(depts, 1)
+        self.assertEqual(models, 1)
+        self.assertEqual(rows[0].daily, 24)
+        self.assertEqual(rows[0].total, 720)
+        self.assertEqual(rows[0].save_pct, 80)
+        self.assertEqual(rows[0].tier, "great")
+        self.assertEqual(rows[0].brand, "日产")
+
+    def test_parse_city_deals_filters_unbookable(self):
+        content = self._content()
+        content["deptHangModels"][0]["models"][0]["bookFlag"] = False
+        rows, _, _ = parse_city_deals(content, city="北京", city_id="1", days=7)
+        self.assertEqual(rows, [])
+
+    def test_rental_payload_summary_and_leaders(self):
+        beijing = RentalCity("北京", "1")
+        shanghai = RentalCity("上海", "6")
+        beijing.deals[7] = parse_city_deals(
+            self._content("86", "127", 1, "科鲁泽"), city="北京", city_id="1", days=7
+        )[0]
+        shanghai.deals[7] = parse_city_deals(
+            self._content("21", "41", 2, "轩逸"), city="上海", city_id="6", days=7
+        )[0]
+        pickup = datetime(2026, 10, 25, 10, tzinfo=timezone(timedelta(hours=8)))
+        payload = build_rental_payload(
+            [beijing, shanghai], pickup_at=pickup, requested_cities=2
+        )
+        self.assertEqual(payload["summary"]["cities"], 2)
+        self.assertEqual(payload["summary"]["periods"]["7"]["minDaily"], 21)
+        self.assertEqual(payload["leaders"]["7"]["daily"][0]["city"], "上海")
+        self.assertEqual(payload["leaders"]["7"]["save"][0]["city"], "上海")
+        self.assertEqual(payload["periods"]["7"]["pickupAt"], "2026-10-25 10:00")
+        self.assertEqual(payload["periods"]["7"]["returnAt"], "2026-11-01 10:00")
+
+    def test_service_fee_calibrated_by_monthly_price(self):
+        city = RentalCity("北京", "1")
+        city.group_prices = {2: 2700}
+        rows = parse_city_deals(
+            self._content("24", "120", 1, "轩逸"), city="北京", city_id="1", days=30
+        )[0]
+        city.deals = {30: rows}
+        apply_service_fees(city)
+        deal = city.deals[30][0]
+        self.assertEqual(deal.rent_total, 720)
+        self.assertEqual(deal.service_total, 1980)
+        self.assertEqual(deal.total, 2700)
+        self.assertEqual(deal.daily, 90.0)
+        self.assertEqual(deal.service_daily, 66.0)
+        self.assertGreater(deal.save_pct, 0)
+
+
+class TestSubscriptionMail(unittest.TestCase):
+    def test_parse_events_and_sanitize_email(self):
+        parsed = parse_issue_body(
+            '```json\n{"name":"测试","email":"a@example.com","events":["new","bad"],'
+            '"pickup_cities":["北京"]}\n```'
+        )
+        self.assertEqual(parsed["email"], "a@example.com")
+        self.assertEqual(parsed["events"], ["new"])
+
+        bad = parse_issue_body(
+            '```json\n{"name":"测试","email":"not-an-email","pickup_cities":["北京"]}\n```'
+        )
+        self.assertNotIn("email", bad)
+
+    def test_email_only_goes_to_matching_subscription(self):
+        from szhitch.models import HitchItem
+        from szhitch.monitor import Event
+
+        mon = Monitor(
+            {**BASE_CFG, "notify": {"console": False, "smtp": {
+                "host": "smtp.example.com", "user": "u", "password": "p", "to": []
+            }}},
+            client=FakeClient([]), store=FakeStore(), notifiers=[], log=lambda *_: None,
+        )
+        beijing = HitchItem(hitch_id="1", model_name="轩逸", price=100,
+                            pickup_city="北京", return_city="上海")
+        shanghai = HitchItem(hitch_id="2", model_name="朗逸", price=100,
+                             pickup_city="上海", return_city="北京")
+        mon.subscriptions = [
+            {"name": "北京", "email": "bj@example.com", "pickup_cities": ["北京"],
+             "__email": "bj@example.com"},
+            {"name": "上海", "email": "sh@example.com", "pickup_cities": ["上海"],
+             "__email": "sh@example.com"},
+        ]
+        with patch("szhitch.notify.SmtpNotifier") as fake:
+            mon._email_subscriptions([Event("new", beijing), Event("new", shanghai)],
+                                     ScanStats(total=2))
+        self.assertEqual(fake.call_count, 2)
+        recipients = {call.args[0]["to"][0] for call in fake.call_args_list}
+        self.assertEqual(recipients, {"bj@example.com", "sh@example.com"})
 
 
 if __name__ == "__main__":
