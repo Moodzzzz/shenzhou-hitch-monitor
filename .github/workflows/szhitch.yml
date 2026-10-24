@@ -1,8 +1,8 @@
 name: 神州顺风车监控
 
 # 三件事：
-#   1. 每 4 小时抓一轮，有新车上线/被锁定/回到订单库时发通知（邮件 / 企业微信 / 飞书…）
-#   2. 把面板数据 dashboard/dashboard.json 提交回仓库
+#   1. 每 15 分钟抓一轮顺风车，有新车上线/被锁定/回到订单库时发通知
+#   2. 把面板数据 dashboard/dashboard.json 提交回仓库（长租行情由 rental.yml 独立刷新）
 #   3. 发布到 GitHub Pages → https://<用户名>.github.io/<仓库名>/
 #
 # 一次性准备：
@@ -11,7 +11,8 @@ name: 神州顺风车监控
 #     SZHITCH_SMTP_PORT  465
 #     SZHITCH_SMTP_USER  你的邮箱
 #     SZHITCH_SMTP_PASS  邮箱授权码（不是登录密码）
-#     SZHITCH_SMTP_TO    收件邮箱，多个用英文逗号分隔
+#     SZHITCH_SMTP_TO    默认收件邮箱，多个用英文逗号分隔（可留空）
+#     SZHITCH_SMTP_FROM  （可选）发件人地址，默认等于 SMTP_USER
 #     SZHITCH_WECOM      （可选）企业微信机器人 webhook
 #   Settings → Pages → Source 选 "GitHub Actions"
 #
@@ -20,7 +21,7 @@ name: 神州顺风车监控
 
 on:
   schedule:
-    - cron: "0 */4 * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
   # 改了工作流或筛选条件时立刻跑一次，方便验证
   push:
@@ -71,6 +72,8 @@ jobs:
           SZHITCH_SMTP_USER: ${{ secrets.SZHITCH_SMTP_USER }}
           SZHITCH_SMTP_PASS: ${{ secrets.SZHITCH_SMTP_PASS }}
           SZHITCH_SMTP_TO: ${{ secrets.SZHITCH_SMTP_TO }}
+          SZHITCH_SMTP_FROM: ${{ secrets.SZHITCH_SMTP_FROM }}
+          SZHITCH_SMTP_SSL: ${{ secrets.SZHITCH_SMTP_SSL }}
           SZHITCH_WECOM: ${{ secrets.SZHITCH_WECOM }}
           SZHITCH_FEISHU: ${{ secrets.SZHITCH_FEISHU }}
           SZHITCH_BARK: ${{ secrets.SZHITCH_BARK }}
@@ -105,6 +108,9 @@ jobs:
   deploy:
     needs: check
     runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
