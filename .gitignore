@@ -8,3 +8,6 @@ data/state.json
 data/snapshots/
 config.test.json
 *.log
+
+# 代理池缓存（本地/CI 临时）
+.cache/

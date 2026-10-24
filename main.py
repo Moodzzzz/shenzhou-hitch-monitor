@@ -26,6 +26,7 @@ from szhitch.insights import build_payload
 from szhitch.models import HitchItem
 from szhitch.monitor import Monitor
 from szhitch.notify import Message, build_notifiers
+from szhitch.rentals import load_payload as load_rental_payload
 from szhitch.rentals import save_payload, scan_rentals
 from szhitch.rules import build_profiles
 from szhitch.store import create_store
@@ -136,6 +137,12 @@ def _write_dashboard(monitor: Monitor, path: Path) -> dict:
         repo=_dashboard_repo(monitor.cfg),
         mail=_mail_status(monitor.cfg),
     )
+    # 长租行情一天一轮、文件又大，把版本戳写进面板数据，
+    # 前端只有发现戳变了才重新下载 rental.json。
+    rental = load_rental_payload(RENTAL_DATA)
+    if rental:
+        payload["rental_updated_at"] = rental.get("generated_at")
+        payload["rental_summary"] = rental.get("summary")
     path.write_text(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
         encoding="utf-8",
@@ -306,17 +313,57 @@ def cmd_rentals(args) -> int:
     rental_cfg = cfg.setdefault("rental", {})
     if args.limit:
         rental_cfg["city_limit"] = args.limit
+    if args.workers:
+        rental_cfg["workers"] = args.workers
     if args.days:
         rental_cfg["periods"] = [int(x) for x in args.days.split(",") if x.strip()]
+    if getattr(args, "no_proxy", False):
+        cfg.setdefault("proxy", {})["enabled"] = False
     cities = [x.strip() for x in (args.cities or "").split(",") if x.strip()] or None
-    payload = scan_rentals(cfg, cities=cities, days=rental_cfg.get("periods"))
     path = Path(args.export or RENTAL_DATA)
+    previous = load_rental_payload(path)
+    payload = scan_rentals(
+        cfg,
+        cities=cities,
+        days=rental_cfg.get("periods"),
+        export_path=path,
+        save_every=int(rental_cfg.get("save_every", 25)),
+        previous=previous,
+    )
     save_payload(payload, path)
     print(
         f"长租行情已导出：{path}（{payload['summary']['cities']} 城 / "
-        f"{payload['summary']['models']} 款 / 最低 {payload['summary']['minDaily']} 元/天）"
+        f"{payload['summary']['models']} 款 / {payload['summary']['deals']} 条报价 / "
+        f"最低 {payload['summary']['minDaily']} 元/天）"
     )
     return 0
+
+
+def cmd_proxy(args) -> int:
+    """构建 / 查看代理池（免费池验活，付费池优先）。"""
+    from szhitch.proxy import ProxyPool, build_pool, mask
+
+    if args.show:
+        pool = ProxyPool.load()
+        stats = pool.stats()
+        print(f"缓存代理：可用 {stats['alive']} / 共 {stats['total']}，最优 {stats['best'] or '—'}")
+        return 0
+
+    _cfg(args)  # 校验配置可用（代理池自身读环境变量）
+    pool = build_pool(
+        use_free=not args.paid_only,
+        limit=args.limit,
+        workers=args.workers,
+        timeout=args.timeout,
+        min_pool=args.min_pool,
+    )
+    stats = pool.stats()
+    pool.save()
+    print(
+        f"代理池已保存：可用 {stats['alive']} / 共 {stats['total']}"
+        + (f"，最优 {mask(stats['best'])}" if stats["best"] else "")
+    )
+    return 0 if stats["alive"] else 1
 
 
 def cmd_test_notify(args) -> int:
@@ -394,9 +441,20 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("rentals", help="抓取周租/半月租/月租行情并导出 JSON")
     p.add_argument("--export", metavar="PATH", default="", help="输出路径，默认 dashboard/rental.json")
     p.add_argument("--days", default="", help="租期天数，逗号分隔，默认 7,15,30")
-    p.add_argument("--cities", default="", help="只抓这些城市，逗号分隔（默认使用 data/rental_cities.json）")
+    p.add_argument("--cities", default="", help="只抓这些城市，逗号分隔（默认全城市）")
     p.add_argument("--limit", type=int, default=0, help="只抓前 N 个城市，便于调试")
+    p.add_argument("--workers", type=int, default=0, help="并发线程数，默认 4")
+    p.add_argument("--no-proxy", action="store_true", help="本轮直连，不走代理池")
     p.set_defaults(func=cmd_rentals)
+
+    p = sub.add_parser("proxy", help="构建 / 查看代理池（免费验活 + 付费优先）")
+    p.add_argument("--show", action="store_true", help="只看缓存里现有的代理")
+    p.add_argument("--paid-only", action="store_true", help="只用付费/自有代理，不拉免费列表")
+    p.add_argument("--limit", type=int, default=120, help="免费候选上限，默认 120")
+    p.add_argument("--workers", type=int, default=40, help="验活并发，默认 40")
+    p.add_argument("--timeout", type=float, default=8.0, help="单个代理验活超时秒数")
+    p.add_argument("--min-pool", type=int, default=6, help="低于这个数量会提示以直连为主")
+    p.set_defaults(func=cmd_proxy)
 
     p = sub.add_parser("test-notify", help="测试通知渠道连通性")
     p.add_argument("--email", default="", help="临时指定 SMTP 测试收件人（逗号分隔）")
