@@ -44,6 +44,7 @@ jobs:
             echo "长租行情无变化"
           else
             git commit -m "chore: 更新长租行情 [skip ci]"
+            git checkout -- .
             git fetch origin main
             git rebase origin/main
             git push origin HEAD:main
