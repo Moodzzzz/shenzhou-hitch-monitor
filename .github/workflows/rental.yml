@@ -3,7 +3,8 @@ name: 神州长租行情
 # 周租 / 半月租 / 月租报价变化没有顺风车那么快，独立每 6 小时刷新一次，
 # 避免把 104 城 × 3 档的请求塞进 15 分钟一轮的顺风车任务。
 #
-# 产物：dashboard/rental.json，由同一套 Pages 发布。
+# 产物：dashboard/rental.json。这里只提交数据，不单独发布 Pages，
+# 避免用旧 dashboard.json 覆盖刚跑完的顺风车数据；下一次 15 分钟监控会带上它发布。
 
 on:
   schedule:
@@ -16,8 +17,6 @@ concurrency:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   rental:
@@ -43,23 +42,6 @@ jobs:
             echo "长租行情无变化"
           else
             git commit -m "chore: 更新长租行情 [skip ci]"
+            git pull --rebase origin main
             git push
           fi
-
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dashboard
-
-  deploy:
-    needs: rental
-    runs-on: ubuntu-latest
-    concurrency:
-      group: pages
-      cancel-in-progress: false
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
