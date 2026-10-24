@@ -523,7 +523,7 @@
       <div>
         <p class="eyebrow">LONG STAY / 城市长租行情</p>
         <h2>周租、半月、月租<br><em>哪座城市最便宜</em></h2>
-        <p class="sub">同一取车日、同一城市，按 7 / 15 / 30 天分别计算「车辆租金 + 出行服务费」。看到的是含服务费的总价，不是只标租金的假低价。</p>
+        <p class="sub">全国 471 城 × 全车型，按 7 / 15 / 30 天分别计算「车辆租金 + 出行服务费」。看到的是含服务费的总价，不是只标租金的假低价；每天 12:00 抓一轮。</p>
       </div>
       <div class="head-stat">
         <div class="v"><span id="rentalHeroMin">—</span><small>元/天</small></div>
@@ -702,6 +702,8 @@ let rentalPicker = null;
 let fromPicker = null;
 let toPicker = null;
 const RENTAL_CITY_MAP = new Map();
+const RENTAL_BY_ID = new Map();
+let RENTAL_DECODED = [];
 
 const state = {
   mode: "hitch",
@@ -856,9 +858,7 @@ async function loadAll(manual = false){
   setSync(true);
   const btn = $("#reload");
   if(btn) btn.disabled = true;
-  const results = await Promise.allSettled([fetchJSON("dashboard.json"), fetchJSON("rental.json")]);
-  const dataResult = results[0];
-  const rentalResult = results[1];
+  const dataResult = await Promise.allSettled([fetchJSON("dashboard.json")]).then(r => r[0]);
 
   if(dataResult.status === "fulfilled"){
     const old = DATA && DATA.generated_at;
@@ -873,11 +873,21 @@ async function loadAll(manual = false){
     $("#list").innerHTML = "";
   }
 
-  if(rentalResult.status === "fulfilled" && rentalResult.value && Array.isArray(rentalResult.value.deals)){
-    RENTAL = rentalResult.value;
-    renderRentalAll();
-  }else if(manual && !RENTAL){
-    toast("长租行情还没生成");
+  // 长租行情一天只更新一次，体积又比顺风车大得多：
+  // 只有 dashboard.json 里的版本戳变了（或手动刷新）才重新下载。
+  const stamp = String(DATA?.rental_updated_at || "");
+  const needRental = manual || !RENTAL || (stamp && stamp !== String(RENTAL.generated_at || ""));
+  if(needRental){
+    try{
+      const res = await fetchJSON("rental.json");
+      if(res && Array.isArray(res.deals)){
+        RENTAL = res;
+        decodeRental();
+        renderRentalAll();
+      }
+    }catch(err){
+      if(manual && !RENTAL) toast("长租行情还没生成");
+    }
   }
 
   loading = false;
@@ -885,6 +895,45 @@ async function loadAll(manual = false){
   setSync(false);
   if(btn) btn.disabled = false;
   if(manual) toast("已重新读取最新数据");
+}
+
+/* 长租产物是紧凑格式：车型/门店字典 + 数组行，这里展开成好读的对象
+   行序：[城市ID, 车型ID, 天数, 租金日价, 服务费日价, 门市日价, 总价, 门店序号] */
+function expandDeal(d){
+  if(!RENTAL || RENTAL.v !== 2 || !Array.isArray(d)) return d;
+  const [cid, mid, days, rent, fee, std, total, di] = d;
+  const city = RENTAL_BY_ID.get(String(cid)) || {};
+  const meta = (RENTAL.models || {})[String(mid)] || [];
+  const span = Number(days) || 1;
+  // 与 App 一致：套餐价 total 只含租金，日均 = 套餐价 / 天数
+  const rentTotal = Number(total) || 0;
+  const serviceTotal = Math.round((Number(fee) || 0) * span);
+  const allInTotal = rentTotal + serviceTotal;
+  const saveBase = (Number(std) || Number(rent) || 0) * span;
+  const save = saveBase > 0 ? Math.max(0, Math.round((1 - rentTotal / saveBase) * 100)) : 0;
+  return {
+    city: city.name || "", cityId: String(cid), days: Number(days),
+    modelId: mid, model: meta[0] || "车型", brand: meta[1] || "",
+    series: meta[2] || "", desc: meta[3] || "", pic: meta[4] || "",
+    dept: (city.deptNames || [])[Number(di) || 0] || "",
+    distance: "",
+    rentDaily: Number(rent) || 0, serviceDaily: Number(fee) || 0,
+    daily: Math.round((rentTotal / span) * 10) / 10,
+    standardDaily: Number(std) || Number(rent) || 0,
+    rentTotal, serviceTotal, total: rentTotal,
+    allInTotal, allInDaily: Math.round((allInTotal / span) * 10) / 10,
+    save, tier: save >= 50 ? "great" : save >= 30 ? "good" : save >= 15 ? "fair" : "normal",
+  };
+}
+function decodeRental(){
+  RENTAL_CITY_MAP.clear();
+  RENTAL_BY_ID.clear();
+  (RENTAL?.cities || []).forEach(c => {
+    RENTAL_CITY_MAP.set(c.name, c);
+    RENTAL_BY_ID.set(String(c.cityId), c);
+  });
+  RENTAL_DECODED = (RENTAL?.deals || []).map(expandDeal);
+  if(RENTAL) RENTAL.decoded = RENTAL_DECODED;
 }
 
 /* ------------------------------------------------------------------ 顺风车 */
@@ -1128,8 +1177,7 @@ function rentalCityMeta(c){
 }
 function buildRentalPicker(){
   if(!RENTAL) return;
-  RENTAL_CITY_MAP.clear();
-  (RENTAL.cities || []).forEach(c => RENTAL_CITY_MAP.set(c.name, c));
+  if(!RENTAL_BY_ID.size) decodeRental();
   const rows = rentalCityRows();
   if(rentalPicker){
     rentalPicker.setData(rows);
@@ -1145,7 +1193,7 @@ function buildRentalPicker(){
 function rentalFiltered(){
   if(!RENTAL) return [];
   const q = state.rental.q.trim().toLowerCase();
-  let arr = (RENTAL.deals || []).filter(it => {
+  let arr = RENTAL_DECODED.filter(it => {
     if(it.days !== Number(state.rental.days)) return false;
     if(state.rental.city && it.city !== state.rental.city) return false;
     if(q){
@@ -1175,9 +1223,9 @@ function renderRentalBoard(){
   const p = periodMeta();
   $("#rentalHeroMin").textContent = p.minDaily || s.minDaily || "—";
   $("#rentalBoard").innerHTML = [
-    ["覆盖城市", fmt(s.cities), "城", "", `样本 ${fmt(s.requested)} 城`],
-    ["当前最低", money(p.minDaily), "元/天", "amber", `租金 ${money(p.minRentDaily)} + 服务费 ${money(p.minServiceDaily)}`],
-    ["租期总价", money(p.minTotal), "元", "jade", `${p.days || state.rental.days} 天 · 含出行服务费`],
+    ["覆盖城市", fmt(s.cities), "城", "", `全量扫描 ${fmt(s.requested)} 城`],
+    ["最低套餐日均", money(p.minDaily), "元/天", "amber", `含服务费约 ${money(p.minAllInDaily)}/天（估）`],
+    ["租期套餐价", money(p.minTotal), "元", "jade", `${p.days || state.rental.days} 天租金 · App 同口径`],
     ["好价数量", fmt(p.good || 0), "条", "", `狠价 ${fmt(p.great || 0)} 条 · 车型 ${fmt(s.models)} 款`],
   ].map(([k, v, u, cls, sub]) => `
     <div class="fig"><div class="k">${k}</div><div class="v ${cls}">${v}<small>${u}</small></div><div class="s">${esc(sub)}</div></div>`).join("");
@@ -1206,7 +1254,7 @@ function renderRentalList(){
     return;
   }
   const arr = rentalFiltered();
-  $("#rentalCount").textContent = `${fmt(arr.length)} / ${fmt((RENTAL.deals || []).length)} 条`;
+  $("#rentalCount").textContent = `${fmt(arr.length)} / ${fmt(RENTAL_DECODED.length)} 条`;
   if(!arr.length){
     $("#rentalList").innerHTML = `<div class="empty">这个城市 / 租期还没有报价 —— 换一个城市或租期试试。</div>`;
     return;
@@ -1224,16 +1272,16 @@ function renderRentalList(){
         <div class="txt"><b>${esc(it.city)}</b><span>${esc(dept)}${esc(distance)}</span><span class="range">${range ? "租期 " + esc(range) : ""}</span></div>
       </div>
       <div class="deal-model"><b>${esc(it.model)}</b><span>${esc(it.desc || "")}${it.brand ? " · " + esc(it.brand) : ""}</span></div>
-      <div class="deal-day"><b>${money(it.daily)}</b><span>元/天全包</span></div>
-      <div class="deal-total"><b>¥${money(it.total)}</b><span>租金 ¥${money(it.rentTotal)} + 服务费 ¥${money(it.serviceTotal)}</span></div>
-      <div class="deal-save"><span class="tag ${esc(it.tier || "")}">${tierLabel} · 省 ${fmt(it.save)}%</span><s>门市租金 ${money(it.standardDaily)}/天</s></div>
+      <div class="deal-day"><b>${money(it.daily)}</b><span>元/日均 · 套餐</span></div>
+      <div class="deal-total"><b>¥${money(it.total)}</b><span>${it.days} 天套餐价 · 全包约 ¥${money(it.allInTotal)}</span></div>
+      <div class="deal-save"><span class="tag ${esc(it.tier || "")}">${tierLabel} · 省 ${fmt(it.save)}%</span><s>门市 ${money(it.standardDaily)}/天</s></div>
     </article>`;
   }).join("") + (arr.length > LIMIT ? `<div class="empty">仅显示前 ${LIMIT} 条，请用城市或车型缩小范围</div>` : "");
 }
 function renderRentalLeaders(){
   if(!RENTAL) return;
   const info = (RENTAL.leaders || {})[String(state.rental.days)] || {};
-  const renderRows = (rows, showSave) => (rows || []).slice(0, 8).map((r, i) => `
+  const renderRows = (rows, showSave) => (rows || []).slice(0, 8).map(expandDeal).map((r, i) => `
     <div class="lrow" data-city="${esc(r.city)}" title="查看 ${esc(r.city)} 的全部报价">
       <span class="lrank">${String(i + 1).padStart(2, "0")}</span>
       <span class="lcity">${esc(r.city)}</span>
@@ -1251,8 +1299,9 @@ function renderRentalLeaders(){
     };
   });
   $("#rentalNote").innerHTML = `取车 <b>${esc(RENTAL.pickup_at || "—")}</b>，三档租期统一口径。<br>
-    ${esc(RENTAL.note || "总价 = 车辆租金 + 出行服务费")}。<br>
-    服务费为估算值：已含基础服务与车辆整备，不含异地还车、上门取送。数据 ${esc(ago(RENTAL.generated_at))}更新。`;
+    <b>套餐价 / 日均</b>与 App 选车页一致（周租、半月租、月租各有套餐优惠，长租越久日均越低）。<br>
+    出行服务费（基础服务 + 车辆整备）是<b>估算值</b>，App 在订单页另收，这里只在「全包约」里给参考。<br>
+    数据 ${esc(ago(RENTAL.generated_at))}更新 · 全城市全车型，每天 12:00 抓一轮。`;
 }
 function renderRentalAll(){
   if(!RENTAL) return;
@@ -1267,7 +1316,7 @@ function renderRentalAll(){
 /* ------------------------------------------------------------------ 渲染总入口 */
 function renderFoot(){
   if(!DATA) return;
-  $("#foot").textContent = `数据源 神州租车移动端公开接口 · 顺风车 ${ago(DATA.generated_at)}更新（15 分钟同步） · 长租 ${RENTAL ? ago(RENTAL.generated_at) + "更新（6 小时同步）" : "行情待生成"} · 租金与服务费均以 App 下单页为准`;
+  $("#foot").textContent = `数据源 神州租车移动端公开接口 · 顺风车 ${ago(DATA.generated_at)}更新（15 分钟一轮） · 长租 ${RENTAL ? ago(RENTAL.generated_at) + "更新（每天 12:00 全量抓一轮）" : "行情待生成"} · 租金与服务费均以 App 下单页为准`;
 }
 function renderAll(){
   if(!DATA) return;
