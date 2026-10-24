@@ -452,11 +452,17 @@ service_per_day = service_30 / 30
 total = rent + service_per_day × days
 ```
 
-`data/rental_cities.json` 选 104 个重点城市；`szhitch/rentals.py` 用
-`data/city_centers.json` 的市中心坐标请求最近门店。`dashboard/rental.json`
-是独立产物，每 6 小时刷新，避免拖慢顺风车的 15 分钟轮询。
+抓取口径是**全城市 × 全车型**：`data/cities.json` 的 471 城逐个请求，
+`data/rental_cities.json` 只作为「优先抓取的种子城市」排序；`data/city_centers.json`
+提供市中心坐标用于就近门店。471 城 × 3 档约 1900 次请求，`rentals.py` 用
+4 路并发 + 代理池（`szhitch/proxy.py`）压到 10–20 分钟，每天北京时间 12:00 跑一轮。
+
+`dashboard/rental.json` 是独立产物，且用紧凑格式（车型/门店字典 + 数组行），
+避免 5 万条报价把 JSON 撑到十几 MB。
 
 | 编号 | 结论 | 级别 |
 |---|---|---|
 | E13 | `chooseCar/v3` 只给租金，费用明细接口需要登录 | 观测（未登录返回 `NOT_LOGIN`） |
 | E14 | 官方月租起价可用于校准「租金 + 出行服务费」总价 | 观测 + 推导（与公开必缴样例交叉核对） |
+| E15 | `packagePrice` / `lowPrice` 是**日价**，不是租期总价 | 实测（同款车 7 天 167、30 天 99，随租期递减） |
+| E16 | 服务费反推值超出 20–130 元/天才说明口径不可比 | 实测（全国 48 档，中位 69） |
