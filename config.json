@@ -46,6 +46,24 @@
     "max_items_per_message": 8,
     "prune_days": 30
   },
+  "rental": {
+    "enabled": true,
+    "periods": [7, 15, 30],
+    "cities": [],
+    "city_limit": 0,
+    "pickup_offset_days": 1,
+    "min_request_interval": 0.55,
+    "timeout": 20,
+    "retries": 2,
+    "service_fee_fallback": {
+      "2": 50,
+      "9": 60,
+      "16": 80,
+      "23": 80,
+      "30": 100,
+      "44": 50
+    }
+  },
   "notify": {
     "console": true,
     "wecom_webhook": "",

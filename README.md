@@ -1,6 +1,9 @@
-# 神州顺风车监控
+# 神州车价 · 顺风车监控 + 长租行情
 
-盯「神州租车」App 里的**顺风车**（异地调车特价车）—— 车需要从一个城市调回另一个城市，你以 1 元 / 50 元 / 100 元的固定价把车开过去，租期 1～13 天。放出来基本靠抢，所以需要程序盯着。
+盯「神州租车」App 里的两类车：
+
+1. **顺风车**（异地调车特价车）—— 车需要从一个城市调回另一个城市，你以 1 元 / 50 元 / 100 元的固定价把车开过去，租期 1～13 天。放出来基本靠抢，所以需要程序盯着。
+2. **周租 / 半月租 / 月租** —— 按 7 / 15 / 30 天分别抓取真实报价，并拆成「车辆租金 + 出行服务费」，避免只看租金造成的假低价。
 
 程序做的事：**定时拉全量 → 比对生命周期（新上线 / 被锁定 / 回到订单库 / 过期剔除）→ 按条件过滤 → 发邮件等通知**，并把结果同步到一个可搜索的**可视面板**。
 
@@ -38,7 +41,10 @@
 | 抗漏抓 | 全量翻页遇到数据位移会自动补一遍；消失的车再按线路复核 |
 | 首轮不刷屏 | 首次运行只建基线，不把 900+ 条历史当「新上线」 |
 | 邮件优先 | HTML 邮件，卡片式排版，手机上也好看 |
-| 可视面板 | 时刻表式看板：全量城市选择器、品牌筛选、预警监控 |
+| 订阅隔离 | 每条订阅只收到自己规则命中的车，不会把 A 的预警发给 B |
+| 长租行情 | 7 / 15 / 30 天真实报价，租金 + 出行服务费拆开算，按全包日均排序 |
+| 实时同步 | 顺风车每 15 分钟刷新、长租每 6 小时刷新；面板每 60 秒自动读最新 JSON |
+| 可视面板 | 时刻表式看板：顺风车 / 长租双模式、全量城市选择器、品牌筛选、预警监控 |
 
 ---
 
@@ -47,7 +53,8 @@
 **不想碰命令行？** 打开看板 → 左侧选好城市 / 路线 / 品牌 → 填邮箱 → 点「⚡ 一键订阅」：
 条件会存成仓库里的一个 Issue，下一轮监控自动按它推送，**关闭 Issue 即退订**。
 邮件提醒：命中时监控会在订阅 Issue 下回执（GitHub 自动向订阅者发邮件，零配置）；
-若在 Secrets 里配置了 SMTP（`SZHITCH_SMTP_HOST/_PORT/_USER/_PASS/_TO`），还会直发邮件。
+若在 Secrets 里配置了 SMTP（`SZHITCH_SMTP_HOST/_PORT/_USER/_PASS/_TO`，可选 `_FROM`），
+订阅里填的邮箱会按各自规则**单独直发**，不会串信。
 
 ```bash
 python main.py init                      # 生成配置
@@ -56,6 +63,7 @@ python main.py test-notify               # 测通知渠道
 
 python main.py once                      # 建立基线（首轮只记录，不推送）
 python main.py watch                     # 常驻，默认 4 小时一轮
+python main.py rentals --export dashboard/rental.json   # 抓周租/半月租/月租行情
 ```
 
 看板：
@@ -83,7 +91,11 @@ pip install pypinyin && python tools/build_cities.py
 
 ## 可视面板
 
-![看板](docs/panel.png)
+![顺风车看板](docs/panel.png)
+
+长租好价：7 / 15 / 30 天，逐条列出租金、出行服务费、总价与租期时间。
+
+![长租看板](docs/panel-rental.png)
 
 城市选择器：471 城全量，中文 / 全拼 / 首字母都能搜，右侧是字母索引条。
 
@@ -92,7 +104,7 @@ pip install pypinyin && python tools/build_cities.py
 面板是一个**静态页 + 一份 JSON**，所以两种用法都行：
 
 - 本地：`python main.py serve --refresh`（或 `once --export dashboard/dashboard.json` 后起任意静态服务）
-- 线上：GitHub Actions 每轮会把 `dashboard/dashboard.json` 提交回仓库并发布到 Pages
+- 线上：`szhitch.yml` 每 15 分钟刷新 `dashboard/dashboard.json`；`rental.yml` 每 6 小时刷新 `dashboard/rental.json`，两者都发布到 Pages
 
 功能：
 
@@ -110,6 +122,10 @@ pip install pypinyin && python tools/build_cities.py
   - 订阅状态：服务端生效中的 `watch_profiles` 及其条件
   - 预警记录：最近 30 天每次「新上线 / 回到订单库 / 降价 / 被锁定」的时间、路线、车型、价格、命中的订阅名
 - **观测节奏**：每天新增多少条，跑得越久越准
+- **长租好价**：7 / 15 / 30 天三档，按城市看最低全包日均
+  - 每条报价列出取车 / 还车时间、租期天数、车型、租金、出行服务费、含服务费总价
+  - 服务费按同城同车型组的官方月租起价校准，包含基础服务与车辆整备
+  - 排序按「含服务费日均」，不是只看裸租金
 
 > 界面是「夜间发车牌」风格：路线做成虚线轨道，价格用等宽数字右对齐，好扫。
 > 移动端会把行折叠成两列，筛选栏取消吸顶。
@@ -271,7 +287,8 @@ python main.py test-notify
 3. **Settings → Pages → Source** 选 `GitHub Actions`
 4. 启用 Actions，手动跑一次（首次是建基线）
 
-之后每 4 小时自动跑：抓取 → 发通知 → 提交 `dashboard/dashboard.json` → 发布 Pages。
+之后 `szhitch.yml` 每 15 分钟跑：抓取 → 发通知 → 提交 `dashboard/dashboard.json` → 发布 Pages；
+`rental.yml` 每 6 小时跑：抓取 104 城三档长租 → 提交 `dashboard/rental.json` → 发布 Pages。
 面板地址形如 `https://<用户名>.github.io/<仓库名>/`。
 
 > 仓库是公开的，所以**密钥只能放 Secrets**。配置里留空即可，工作流里有一道检查，

@@ -26,6 +26,7 @@ from szhitch.insights import build_payload
 from szhitch.models import HitchItem
 from szhitch.monitor import Monitor
 from szhitch.notify import Message, build_notifiers
+from szhitch.rentals import save_payload, scan_rentals
 from szhitch.rules import build_profiles
 from szhitch.store import create_store
 
@@ -33,6 +34,7 @@ ROOT = Path(__file__).resolve().parent
 DEFAULT_CONFIG = ROOT / "config.json"
 DASHBOARD_DIR = ROOT / "dashboard"
 DASHBOARD_DATA = DASHBOARD_DIR / "dashboard.json"
+RENTAL_DATA = DASHBOARD_DIR / "rental.json"
 
 
 def _setup_stdout() -> None:
@@ -103,6 +105,22 @@ def _dashboard_repo(cfg: dict) -> str:
     return str(cfg.get("subscribe", {}).get("repo") or "") or os.environ.get("GITHUB_REPOSITORY", "")
 
 
+def _mail_status(cfg: dict) -> dict:
+    """面板只展示「是否就绪」，绝不把邮箱、授权码下发到静态页。"""
+    smtp = (cfg.get("notify") or {}).get("smtp") or {}
+    sub = cfg.get("subscribe") or {}
+    ready = bool(smtp.get("host") and smtp.get("user") and smtp.get("password"))
+    recipients = smtp.get("to") or []
+    if isinstance(recipients, str):
+        recipients = [recipients]
+    return {
+        "smtpReady": ready,
+        "smtpRecipients": len(recipients),
+        "commentAlerts": bool(sub.get("enabled", True) and sub.get("comment_alerts", True)),
+        "repoReady": "/" in _dashboard_repo(cfg),
+    }
+
+
 def _write_dashboard(monitor: Monitor, path: Path) -> dict:
     """把最近一轮结果写成面板数据（面板是静态页，只读这个 JSON）。"""
     path = Path(path)
@@ -116,6 +134,7 @@ def _write_dashboard(monitor: Monitor, path: Path) -> dict:
             days=30, limit=40
         ),
         repo=_dashboard_repo(monitor.cfg),
+        mail=_mail_status(monitor.cfg),
     )
     path.write_text(
         json.dumps(payload, ensure_ascii=False, separators=(",", ":")),
@@ -281,8 +300,34 @@ def cmd_snapshot(args) -> int:
     return 0
 
 
+def cmd_rentals(args) -> int:
+    """抓取普通租车的周租 / 半月租 / 月租行情，导出独立 JSON。"""
+    cfg = _cfg(args)
+    rental_cfg = cfg.setdefault("rental", {})
+    if args.limit:
+        rental_cfg["city_limit"] = args.limit
+    if args.days:
+        rental_cfg["periods"] = [int(x) for x in args.days.split(",") if x.strip()]
+    cities = [x.strip() for x in (args.cities or "").split(",") if x.strip()] or None
+    payload = scan_rentals(cfg, cities=cities, days=rental_cfg.get("periods"))
+    path = Path(args.export or RENTAL_DATA)
+    save_payload(payload, path)
+    print(
+        f"长租行情已导出：{path}（{payload['summary']['cities']} 城 / "
+        f"{payload['summary']['models']} 款 / 最低 {payload['summary']['minDaily']} 元/天）"
+    )
+    return 0
+
+
 def cmd_test_notify(args) -> int:
     cfg = _cfg(args)
+    if args.email:
+        smtp = (cfg.get("notify") or {}).get("smtp")
+        if isinstance(smtp, dict):
+            smtp["to"] = [x.strip() for x in args.email.split(",") if x.strip()]
+        else:
+            print("还没有配置 SMTP，无法指定测试收件人；请先设置 SZHITCH_SMTP_* 环境变量或 config.json")
+            return 1
     notifiers = build_notifiers(cfg.get("notify") or {})
     if not notifiers:
         print("没有配置任何通知渠道")
@@ -346,7 +391,15 @@ def main(argv: list[str] | None = None) -> int:
     p = sub.add_parser("snapshot", help="导出当前全国顺风车为 CSV")
     p.set_defaults(func=cmd_snapshot)
 
+    p = sub.add_parser("rentals", help="抓取周租/半月租/月租行情并导出 JSON")
+    p.add_argument("--export", metavar="PATH", default="", help="输出路径，默认 dashboard/rental.json")
+    p.add_argument("--days", default="", help="租期天数，逗号分隔，默认 7,15,30")
+    p.add_argument("--cities", default="", help="只抓这些城市，逗号分隔（默认使用 data/rental_cities.json）")
+    p.add_argument("--limit", type=int, default=0, help="只抓前 N 个城市，便于调试")
+    p.set_defaults(func=cmd_rentals)
+
     p = sub.add_parser("test-notify", help="测试通知渠道连通性")
+    p.add_argument("--email", default="", help="临时指定 SMTP 测试收件人（逗号分隔）")
     p.set_defaults(func=cmd_test_notify)
 
     args = parser.parse_args(argv)
