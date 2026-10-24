@@ -48,6 +48,21 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "repo": "",
         "comment_alerts": True,
     },
+    # 普通租车长租行情（周租 / 半月 / 月租），与顺风车分开刷新。
+    "rental": {
+        "enabled": True,
+        "periods": [7, 15, 30],
+        "cities": [],
+        "city_limit": 0,
+        "pickup_offset_days": 1,
+        "min_request_interval": 0.55,
+        "timeout": 20,
+        "retries": 2,
+        # 拿不到官方月租起价时的兜底「出行服务费」元/天（按车型组）
+        "service_fee_fallback": {
+            "2": 50, "9": 60, "16": 80, "23": 80, "30": 100, "44": 50,
+        },
+    },
     "behavior": {
         "first_run": "silent",
         "notify_new": True,

@@ -13,6 +13,7 @@
 """
 from __future__ import annotations
 
+import copy
 import html as _html
 import json
 import os
@@ -217,21 +218,63 @@ class Monitor:
 
         emails = sorted({s["__email"] for s in subs if s.get("__email")})
         self.subscription_emails = emails
-        if emails:
-            self._merge_recipients(emails)
+        # 不把订阅邮箱并进全局 SMTP 收件人：那会把 A 的预警发给 B。
+        # 每封订阅邮件在 _email_subscriptions 里按各自规则单独发送。
         self.log(f"[订阅] 从 Issues 载入 {len(subs)} 条订阅"
-                 + (f"，邮件抄送 {len(emails)} 个地址" if emails else ""))
+                 + (f"，其中 {len(emails)} 个邮箱订阅" if emails else ""))
 
-    def _merge_recipients(self, emails: list[str]) -> None:
-        """把订阅里的邮箱并入 SMTP 收件人（若已配置 SMTP）。"""
+    @staticmethod
+    def _subscription_events(sub: dict[str, Any]) -> set[str]:
+        raw = sub.get("events")
+        if not isinstance(raw, list):
+            return set()
+        return {str(x) for x in raw if x in ("new", "relisted", "price_drop", "locked")}
+
+    def _email_subscriptions(self, matched: list[Event], stats: ScanStats) -> None:
+        """按订阅规则把命中结果直发到订阅邮箱。
+
+        同一邮箱有多条订阅时合并成一封；每条订阅只收到自己规则命中的车。
+        没配置 SMTP 或订阅没填邮箱时静默跳过，Issue 回执仍然生效。
+        """
         smtp_cfg = (self.cfg.get("notify") or {}).get("smtp")
-        if not smtp_cfg:
+        if not smtp_cfg or not self.subscriptions:
             return
-        to = list(smtp_cfg.get("to") or [])
-        smtp_cfg["to"] = to + [e for e in emails if e and e not in to]
-        for n in self.notifiers:
-            if getattr(n, "name", "") == "smtp":
-                n.to = smtp_cfg["to"]
+        try:
+            from .notify import SmtpNotifier
+        except ImportError:  # pragma: no cover
+            return
+
+        grouped: dict[str, list[Event]] = {}
+        for sub in self.subscriptions:
+            email = str(sub.get("__email") or "").strip()
+            if not email:
+                continue
+            rule = RuleSet.from_config({k: v for k, v in sub.items() if not k.startswith("__")})
+            allowed = self._subscription_events(sub)
+            hits = [
+                ev for ev in matched
+                if (not allowed or ev.kind in allowed) and rule.evaluate(ev.item)[0]
+            ]
+            if not hits:
+                continue
+            bucket = grouped.setdefault(email, [])
+            seen = {(ev.kind, ev.item.hitch_id) for ev in bucket}
+            for ev in hits:
+                if (ev.kind, ev.item.hitch_id) not in seen:
+                    bucket.append(ev)
+                    seen.add((ev.kind, ev.item.hitch_id))
+
+        for email, events in grouped.items():
+            sub_stats = copy.copy(stats)
+            sub_stats.events = events
+            sub_stats.matched = len(events)
+            msg = self.build_message(events, sub_stats)
+            msg.title = "你的订阅 · " + msg.title
+            try:
+                SmtpNotifier({**smtp_cfg, "to": [email]}).send(msg)
+                self.log(f"  [订阅邮件] 已发送 {email}（{len(events)} 条命中）")
+            except Exception as exc:
+                self.log(f"  [订阅邮件] {email} 发送失败: {exc}")
 
     def _comment_subscriptions(self, matched: list[Event]) -> None:
         """把命中结果回执到对应的订阅 Issue（GitHub 会给订阅者发邮件）。"""
@@ -249,7 +292,11 @@ class Monitor:
 
         for sub in self.subscriptions:
             rule = RuleSet.from_config({k: v for k, v in sub.items() if not k.startswith("__")})
-            hits = [ev for ev in matched if rule.evaluate(ev.item)[0]]
+            allowed = self._subscription_events(sub)
+            hits = [
+                ev for ev in matched
+                if (not allowed or ev.kind in allowed) and rule.evaluate(ev.item)[0]
+            ]
             if not hits:
                 continue
             lines = [f"🔔 预警 **{len(hits)}** 条 · {utcnow()[:16].replace('T', ' ')}（UTC）", ""]
@@ -583,8 +630,10 @@ class Monitor:
         if matched:
             stats.notified = self.notify(self.build_message(matched, stats))
 
-        # 订阅 Issue 回执（GitHub 自动向订阅者发邮件，零配置渠道；演练模式不发）
         if matched and persist:
+            # 订阅专属邮件：只发给命中该订阅的邮箱；演练模式不发。
+            self._email_subscriptions(matched, stats)
+            # 订阅 Issue 回执（GitHub 自动向订阅者发邮件，零配置渠道；演练模式不发）
             self._comment_subscriptions(matched)
 
         # ---- 6) 过期剔除：从状态库硬删除（保留期见 prune_expired_days）----

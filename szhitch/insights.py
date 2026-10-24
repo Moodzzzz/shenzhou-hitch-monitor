@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import math
 from collections import Counter, defaultdict
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Iterable
 
 from .catalog import load_brands, load_cities, parse_model
@@ -16,6 +16,7 @@ from .models import HitchItem
 from .store import STATUS_AVAILABLE, STATUS_LOCKED, ListingState
 
 WEEKDAYS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
+CN_TZ = timezone(timedelta(hours=8))
 
 #: 事件类型 → 面板展示文案（与 monitor.py 的 KIND_LABEL 保持同义，避免循环导入）
 ALERT_KIND_LABEL = {
@@ -175,6 +176,7 @@ def build_payload(
     profiles: Any = None,
     events: Iterable[dict[str, Any]] | None = None,
     repo: str = "",
+    mail: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """组装 dashboard.json。
 
@@ -182,7 +184,7 @@ def build_payload(
     ``city_dict``（471 城全量 + 拼音 + 首字母 + 省份）、``brands``、
     ``routes``，前端只做过滤，不再依赖「当前有车的城市」。
     """
-    now = generated_at or datetime.now()
+    now = generated_at or datetime.now(CN_TZ)
     listings: list[dict[str, Any]] = []
     city_stats: dict[str, dict[str, Any]] = {}
     model_counter: Counter = Counter()
@@ -294,6 +296,7 @@ def build_payload(
             stat["min"] = 0
 
     prices = [it.price for it in items if it.price]
+    per_days = [it.price / it.days for it in items if it.price and it.days]
     savings = [
         (1 - row["price"] / row["orig"]) * 100
         for row in listings
@@ -358,6 +361,8 @@ def build_payload(
             "routes": len(route_counter),
             "min_price": min(prices) if prices else 0,
             "avg_price": round(sum(prices) / len(prices), 1) if prices else 0,
+            "min_per_day": round(min(per_days), 1) if per_days else 0,
+            "avg_per_day": round(sum(per_days) / len(per_days), 1) if per_days else 0,
             "avg_save": round(sum(savings) / len(savings), 1) if savings else 0,
             "priced": len(savings),
             "special": sum(1 for p in prices if p <= 100),
@@ -374,5 +379,7 @@ def build_payload(
         "watch": watch,
         "alerts": build_alerts(events),
         "repo": repo,
+        "mail": mail or {"smtpReady": False, "commentAlerts": False},
+        "sync": {"monitorMinutes": 15, "rentalHours": 6},
         "forecast": forecast,
     }
