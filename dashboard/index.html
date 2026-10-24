@@ -4,448 +4,721 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="color-scheme" content="dark">
-<title>神州顺风车 · 盯盘台</title>
+<meta name="theme-color" content="#08090c">
+<title>神州车价 · 顺风车与长租行情</title>
 <style>
-  /* ============ 设计基调：夜间发车牌 ============
-     暖墨底 + 琥珀数字 + 虚线轨道。信息密度按「时刻表」排，
-     价格与路线是唯一主角，其余全部退到灰阶。 */
+  /* ============================================================
+     神州车价 · 夜间调度牌
+     暖墨底 / 琥珀票价 / 虚线轨道。核心是「一眼看到值得出发的价格」。
+     ============================================================ */
   :root{
-    --ink:#0a0a0c; --ink-2:#101116; --ink-3:#15171e; --ink-4:#1b1e27;
-    --line:#23252e; --line-2:#2f323d;
-    --paper:#f3f0ea; --paper-2:#cfccc4;
-    --muted:#96959f; --dim:#66666f;
-    --amber:#f7b955; --amber-bg:#2a2113; --amber-line:#4a3a1a;
-    --jade:#5ad3a0; --rose:#ff7d93; --blue:#86a9f5;
-
+    --bg:#08090c;
+    --panel:#0e1015;
+    --panel-2:#12151c;
+    --panel-3:#171b24;
+    --line:#20232c;
+    --line-2:#2d3140;
+    --text:#f2efe7;
+    --text-2:#cbc8c0;
+    --muted:#96949e;
+    --dim:#666873;
+    --amber:#ffb84d;
+    --amber-soft:#2a2113;
+    --amber-line:#4a3a1a;
+    --jade:#5ad3a0;
+    --rose:#ff7d93;
+    --blue:#86a9f5;
     --sans:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei UI","Microsoft YaHei",system-ui,-apple-system,"Segoe UI",sans-serif;
-    --mono:"SF Mono","Cascadia Code","JetBrains Mono",ui-monospace,Consolas,"Liberation Mono",monospace;
-
-    --r:12px; --r-lg:16px;
+    --mono:"Bahnschrift","DIN Alternate","SF Mono","Cascadia Code","JetBrains Mono",ui-monospace,Consolas,monospace;
+    --r:10px;
+    --r-lg:16px;
     --ease:cubic-bezier(.16,1,.3,1);
   }
   *{box-sizing:border-box}
-  html,body{margin:0;background:var(--ink);color:var(--paper);font-family:var(--sans);
-    -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+  html,body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
   body{
     background-image:
-      radial-gradient(900px 420px at 12% -10%, rgba(247,185,85,.07), transparent 60%),
-      radial-gradient(700px 380px at 100% 0%, rgba(134,169,245,.05), transparent 55%);
+      radial-gradient(1000px 480px at 10% -12%,rgba(255,184,77,.08),transparent 62%),
+      radial-gradient(760px 420px at 100% 0%,rgba(134,169,245,.045),transparent 58%);
     background-repeat:no-repeat;
   }
+  ::selection{background:var(--amber);color:#1a1400}
   a{color:var(--blue);text-decoration:none}
-  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-  .wrap{max-width:1500px;margin:0 auto;padding:26px 22px 72px}
-
-  /* ---------------- 报头 ---------------- */
-  .masthead{display:flex;align-items:center;justify-content:space-between;gap:20px;
-    flex-wrap:wrap;padding-bottom:18px;border-bottom:1px solid var(--line)}
-  .brand{display:flex;align-items:center;gap:13px}
-  .mark{width:38px;height:38px;border-radius:11px;display:grid;place-items:center;flex:none;
-    background:linear-gradient(160deg,#241a0a,#17140f);border:1px solid var(--amber-line);
-    color:var(--amber);font-family:var(--mono);font-size:17px;letter-spacing:-3px;
-    box-shadow:inset 0 1px 0 rgba(247,185,85,.12)}
-  h1{margin:0;font-size:19px;font-weight:650;letter-spacing:.02em}
-  h1 em{font-style:normal;color:var(--dim);font-weight:400;font-size:13px;margin-left:8px;letter-spacing:.06em}
-  .tagline{margin:4px 0 0;color:var(--dim);font-size:12px;letter-spacing:.04em}
-  .live{display:flex;align-items:center;gap:9px;font-size:12px;color:var(--muted);white-space:nowrap;
-    background:var(--ink-2);border:1px solid var(--line);border-radius:999px;padding:7px 13px}
-  .dot{width:7px;height:7px;border-radius:50%;background:var(--jade);flex:none;
-    box-shadow:0 0 0 0 rgba(90,211,160,.55);animation:pulse 2.4s var(--ease) infinite}
-  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(90,211,160,.5)}70%{box-shadow:0 0 0 7px rgba(90,211,160,0)}100%{box-shadow:0 0 0 0 rgba(90,211,160,0)}}
-  .live b{color:var(--paper);font-family:var(--mono);font-weight:600}
-  .toolbar{display:flex;gap:8px;align-items:center}
-  button{font:inherit;color:var(--paper);background:var(--ink-3);border:1px solid var(--line);white-space:nowrap;
-    border-radius:10px;padding:8px 13px;cursor:pointer;transition:.18s var(--ease)}
-  button:hover{border-color:var(--line-2);background:var(--ink-4);color:var(--amber)}
+  button{font:inherit;color:var(--text);background:var(--panel-2);border:1px solid var(--line);border-radius:9px;padding:8px 13px;cursor:pointer;transition:.18s var(--ease);white-space:nowrap}
+  button:hover{border-color:var(--line-2);background:var(--panel-3);color:var(--amber)}
   button:active{transform:translateY(1px)}
-  button:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
-
-  /* ---------------- 数字看板 ---------------- */
-  .board{display:grid;grid-template-columns:repeat(5,1fr);gap:0;
-    border-bottom:1px solid var(--line);margin-bottom:18px}
-  .fig{padding:18px 22px 19px;border-left:1px solid var(--line);min-width:0}
-  .fig:first-child{border-left:0;padding-left:2px}
-  .fig .k{color:var(--dim);font-size:11px;letter-spacing:.14em;text-transform:uppercase}
-  .fig .v{font-family:var(--mono);font-size:clamp(24px,2.4vw,32px);font-weight:600;
-    line-height:1.1;margin-top:7px;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
-  .fig .v small{font-family:var(--sans);font-size:12px;color:var(--dim);font-weight:400;
-    margin-left:5px;letter-spacing:.02em}
-  .fig .v small b{color:var(--muted);font-weight:500}
-  .fig.accent .v{color:var(--amber)}
-  .fig.rose .v{color:var(--rose)}
-  .fig.jade .v{color:var(--jade)}
-  @media(max-width:900px){
-    .board{grid-template-columns:repeat(2,1fr)}
-    .fig{padding:14px 16px;border-top:1px solid var(--line)}
-    .fig:nth-child(-n+2){border-top:0}
-    .fig:first-child{padding-left:16px}
-    .fig:nth-child(odd){border-left:0}
-  }
-
-  /* ---------------- 筛选栏 ---------------- */
-  .rail{position:sticky;top:0;z-index:40;background:rgba(10,10,12,.86);
-    backdrop-filter:blur(14px) saturate(1.3);-webkit-backdrop-filter:blur(14px) saturate(1.3);
-    border-bottom:1px solid var(--line);padding:12px 0 11px;margin-bottom:16px;
-    box-shadow:0 10px 26px -12px rgba(0,0,0,.75);
-    display:flex;flex-direction:column;gap:10px}
-  .frow{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
-  .field{display:flex;align-items:center;gap:7px}
-  .field label{color:var(--dim);font-size:11px;letter-spacing:.12em;white-space:nowrap;text-transform:uppercase}
-  input,select{font:inherit;font-size:13px;color:var(--paper);background:var(--ink-3);
-    border:1px solid var(--line);border-radius:9px;padding:8px 10px;outline:none;min-width:0;transition:.18s}
+  button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--amber);outline-offset:2px}
+  input,select{font:inherit;font-size:13px;color:var(--text);background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;outline:none;min-width:0;transition:.18s}
   input:hover,select:hover{border-color:var(--line-2)}
-  input:focus,select:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(247,185,85,.10)}
+  input:focus,select:focus{border-color:var(--amber);box-shadow:0 0 0 3px rgba(255,184,77,.10)}
   input::placeholder{color:var(--dim)}
-  #q{width:168px}
-  .seg{display:flex;background:var(--ink-2);border:1px solid var(--line);border-radius:9px;padding:2px;gap:2px}
-  .seg button{border:0;background:transparent;padding:6px 11px;font-size:12.5px;color:var(--muted);border-radius:7px}
-  .seg button:hover{background:var(--ink-4);color:var(--paper)}
-  .seg button.on{background:var(--amber);color:#1a1400;font-weight:600}
+  .num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+  .shell{max-width:1500px;margin:0 auto;padding:0 22px 80px}
+  .view[hidden]{display:none!important}
+  .eyebrow{margin:0;color:var(--dim);font-family:var(--mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase}
+
+  /* ------------------------------------------------ 顶栏 */
+  .topbar{
+    position:relative;z-index:30;display:flex;align-items:center;gap:22px;flex-wrap:wrap;
+    max-width:1500px;margin:0 auto;padding:20px 22px 17px;border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex;align-items:center;gap:12px;flex:none}
+  .mark{width:38px;height:38px;border-radius:10px;display:grid;place-items:center;flex:none;
+    background:linear-gradient(155deg,#2a1e0b,#14120e);border:1px solid var(--amber-line);
+    color:var(--amber);font-family:var(--mono);font-size:16px;letter-spacing:-3px;
+    box-shadow:inset 0 1px 0 rgba(255,184,77,.14)}
+  .brand h1{margin:0;font-size:18px;font-weight:650;letter-spacing:.03em}
+  .brand h1 span{color:var(--dim);font-family:var(--mono);font-size:9px;letter-spacing:.18em;margin-left:8px;font-weight:400}
+  .brand p{margin:3px 0 0;color:var(--dim);font-size:11px;letter-spacing:.04em}
+  .modes{display:flex;gap:3px;background:var(--panel);border:1px solid var(--line);border-radius:11px;padding:3px}
+  .mode-btn{position:relative;border:0;background:transparent;border-radius:8px;padding:7px 15px 6px;color:var(--muted);font-size:13px;line-height:1.15;text-align:left}
+  .mode-btn small{display:block;font-family:var(--mono);font-size:8px;letter-spacing:.16em;color:var(--dim);margin-top:3px}
+  .mode-btn:hover{background:var(--panel-3);color:var(--text)}
+  .mode-btn.on{background:var(--amber);color:#1b1400;font-weight:650}
+  .mode-btn.on small{color:#654b10}
+  .top-actions{margin-left:auto;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .sync{display:flex;align-items:center;gap:8px;color:var(--muted);background:var(--panel);border:1px solid var(--line);
+    border-radius:999px;padding:6px 11px;font-size:11px;white-space:nowrap}
+  .sync .dot{width:6px;height:6px;border-radius:50%;background:var(--jade);animation:pulse 2.4s var(--ease) infinite}
+  .sync.warn .dot{background:var(--amber);animation:none;box-shadow:none}
+  .sync.bad .dot{background:var(--rose);animation:none;box-shadow:none}
+  .sync b{color:var(--text);font-family:var(--mono);font-weight:600}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(90,211,160,.48)}70%{box-shadow:0 0 0 6px rgba(90,211,160,0)}100%{box-shadow:0 0 0 0 rgba(90,211,160,0)}}
+  .icon-btn{padding:8px 11px;font-size:12px}
+  .mail-open{border-color:var(--amber-line);background:var(--amber-soft);color:var(--amber)}
+  .mail-open:hover{background:var(--amber);color:#1a1400;border-color:var(--amber)}
+  .mail-open .badge{display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--jade);margin-right:5px;vertical-align:1px}
+  .mail-open.off .badge{background:var(--dim)}
+
+  /* ------------------------------------------------ 报头 */
+  .pagehead{display:flex;justify-content:space-between;align-items:flex-end;gap:24px;padding:30px 0 18px;flex-wrap:wrap}
+  .pagehead h2{margin:7px 0 0;font-size:clamp(26px,3.3vw,40px);font-weight:650;line-height:1.12;letter-spacing:-.03em}
+  .pagehead h2 em{font-style:normal;color:var(--amber)}
+  .pagehead .sub{margin:9px 0 0;color:var(--muted);font-size:12px;max-width:620px;line-height:1.7}
+  .head-stat{text-align:right;flex:none}
+  .head-stat .v{font-family:var(--mono);font-size:clamp(32px,4vw,48px);font-weight:650;line-height:1;color:var(--amber);letter-spacing:-.05em}
+  .head-stat .v small{font-family:var(--sans);font-size:11px;color:var(--dim);font-weight:400;letter-spacing:.02em;margin-left:5px}
+  .head-stat .k{margin-top:6px;color:var(--dim);font-size:10px;letter-spacing:.12em;text-transform:uppercase}
+
+  /* ------------------------------------------------ 指标 */
+  .board{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin-bottom:17px}
+  .fig{padding:15px 20px 16px;border-left:1px solid var(--line);min-width:0}
+  .fig:first-child{border-left:0;padding-left:2px}
+  .fig .k{color:var(--dim);font-size:10px;letter-spacing:.13em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fig .v{font-family:var(--mono);font-size:clamp(22px,2.3vw,30px);font-weight:600;line-height:1.12;margin-top:6px;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+  .fig .v small{font-family:var(--sans);font-size:11px;color:var(--dim);font-weight:400;margin-left:4px;letter-spacing:.02em}
+  .fig .v.amber{color:var(--amber)}.fig .v.jade{color:var(--jade)}.fig .v.rose{color:var(--rose)}
+  .fig .s{margin-top:5px;color:var(--dim);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+  /* ------------------------------------------------ 筛选 */
+  .rail{position:sticky;top:0;z-index:25;background:rgba(8,9,12,.88);backdrop-filter:blur(15px) saturate(1.3);-webkit-backdrop-filter:blur(15px) saturate(1.3);
+    border-bottom:1px solid var(--line);padding:11px 0 10px;margin-bottom:14px;display:flex;flex-direction:column;gap:9px;
+    box-shadow:0 12px 28px -16px rgba(0,0,0,.8)}
+  .frow{display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+  .field{display:flex;align-items:center;gap:7px}
+  .field label,.lbl{color:var(--dim);font-size:10px;letter-spacing:.13em;white-space:nowrap;text-transform:uppercase}
+  .seg{display:flex;background:var(--panel);border:1px solid var(--line);border-radius:9px;padding:2px;gap:2px}
+  .seg button{border:0;background:transparent;padding:6px 10px;font-size:12px;color:var(--muted);border-radius:7px}
+  .seg button:hover{background:var(--panel-3);color:var(--text)}
+  .seg button.on{background:var(--amber);color:#1a1400;font-weight:650}
+  .seg button:disabled{opacity:.35;cursor:not-allowed;background:transparent;color:var(--dim)}
   .spacer{flex:1}
   .ghost{background:transparent;border-color:transparent;color:var(--dim);padding:6px 9px;font-size:12px}
-  .ghost:hover{background:var(--ink-3);border-color:transparent;color:var(--amber)}
-  .ghost.on{color:var(--amber);border-color:var(--amber-line);background:var(--amber-bg)}
-
-  /* ---------------- 城市选择器 ---------------- */
-  .cp{position:relative}
-  .cp-btn{display:flex;align-items:center;gap:10px;min-width:136px;justify-content:space-between;
-    background:var(--ink-3);border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:13px}
-  .cp-btn.on{border-color:var(--amber-line);color:var(--amber);background:var(--amber-bg)}
-  .cp-btn .caret{color:var(--dim);font-size:9px}
-  .cp-pop{position:absolute;z-index:60;top:calc(100% + 8px);left:0;width:364px;
-    background:#12141a;border:1px solid var(--line-2);border-radius:14px;
-    box-shadow:0 24px 60px rgba(0,0,0,.66),0 1px 0 rgba(255,255,255,.03) inset;
-    padding:11px;display:none;animation:pop .18s var(--ease)}
-  @keyframes pop{from{opacity:0;transform:translateY(-6px) scale(.99)}to{opacity:1;transform:none}}
-  .cp-pop.open{display:block}
-  .cp-search{width:100%;margin-bottom:7px}
-  .cp-hint{color:var(--dim);font-size:10.5px;margin:0 2px 8px;letter-spacing:.02em}
-  .cp-body{display:flex;gap:5px;max-height:302px}
-  .cp-list{flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:#2f323d transparent}
-  .cp-group{position:sticky;top:0;background:#12141a;color:var(--amber);
-    font-family:var(--mono);font-size:10.5px;font-weight:700;padding:4px 5px;letter-spacing:.14em;z-index:1}
-  .cp-item{display:flex;justify-content:space-between;align-items:center;gap:8px;
-    padding:6px 8px;border-radius:7px;font-size:13px;cursor:pointer;transition:background .12s}
-  .cp-item:hover{background:var(--ink-4)}
-  .cp-item.sel{background:var(--amber-bg);color:var(--amber)}
-  .cp-item .meta{color:var(--dim);font-size:11px;font-family:var(--mono);white-space:nowrap}
-  .cp-item .meta b{color:var(--muted);font-weight:600}
-  .cp-item.zero{opacity:.42}
-  .cp-index{flex:none;display:flex;flex-direction:column;gap:1px;overflow:auto;padding:0 1px 0 3px;
-    scrollbar-width:none;border-left:1px solid var(--line);margin-left:2px}
-  .cp-idx{font-family:var(--mono);font-size:10px;color:var(--dim);padding:1px 4px;border-radius:5px;
-    cursor:pointer;text-align:center;min-width:17px;transition:.12s}
-  .cp-idx:hover,.cp-idx.on{background:var(--amber);color:#1a1400;font-weight:700}
-  .cp-empty{color:var(--dim);font-size:12px;padding:18px 8px;text-align:center}
-
-  /* ---------------- 品牌 chips ---------------- */
-  .chips{display:flex;flex-wrap:nowrap;gap:5px;overflow-x:auto;overflow-y:hidden;padding:1px 0 3px;
-    flex:1 1 0;min-width:0;
-    scrollbar-width:thin;scrollbar-color:#2f323d transparent;
-    -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%);
-            mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 26px),transparent 100%)}
-  .chips::-webkit-scrollbar{height:4px}
-  .chips::-webkit-scrollbar-thumb{background:#2f323d;border-radius:2px}
-  .chip{border:1px solid var(--line);background:var(--ink-2);border-radius:999px;
-    padding:4px 10px;font-size:12px;color:var(--muted);cursor:pointer;white-space:nowrap;
-    transition:.15s var(--ease);display:inline-flex;align-items:baseline;gap:5px}
-  .chip:hover{border-color:var(--line-2);color:var(--paper);transform:translateY(-1px)}
-  .chip.on{background:var(--amber);border-color:var(--amber);color:#1a1400;font-weight:600}
-  .chip .n{font-family:var(--mono);font-size:10px;color:var(--dim)}
+  .ghost:hover{background:var(--panel-2);border-color:transparent;color:var(--amber)}
+  .ghost.on{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+  #q,#rq{width:172px}
+  .chips{display:flex;gap:5px;overflow-x:auto;overflow-y:hidden;padding:1px 0 2px;flex:1 1 0;min-width:0;scrollbar-width:thin;scrollbar-color:#2d3140 transparent;
+    -webkit-mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 22px),transparent 100%);mask-image:linear-gradient(90deg,#000 0,#000 calc(100% - 22px),transparent 100%)}
+  .chip{border:1px solid var(--line);background:var(--panel);border-radius:999px;padding:4px 9px;font-size:11.5px;color:var(--muted);cursor:pointer;white-space:nowrap;display:inline-flex;align-items:baseline;gap:4px;transition:.15s var(--ease)}
+  .chip:hover{border-color:var(--line-2);color:var(--text);transform:translateY(-1px)}
+  .chip.on{background:var(--amber);border-color:var(--amber);color:#1a1400;font-weight:650}
+  .chip .n{font-family:var(--mono);font-size:9.5px;color:var(--dim)}
   .chip.on .n{color:#5a4408}
-  .chip-lbl{color:var(--dim);font-size:11px;letter-spacing:.12em;text-transform:uppercase;white-space:nowrap}
-
-  .routebar{display:flex;align-items:center;gap:7px;flex-wrap:wrap}
-  .rchip{border:1px solid var(--line);background:var(--ink-2);border-radius:8px;
-    padding:5px 9px;font-size:12px;color:var(--muted);cursor:pointer;transition:.15s}
+  .routebar{display:flex;align-items:center;gap:6px;flex-wrap:wrap;min-width:0}
+  .rchip{border:1px solid var(--line);background:var(--panel);border-radius:7px;padding:5px 8px;font-size:11.5px;color:var(--muted);cursor:pointer;transition:.15s}
   .rchip:hover{border-color:var(--amber-line);color:var(--amber)}
   .rchip b{font-family:var(--mono);color:var(--dim);font-weight:500;margin-left:4px}
 
-  /* ---------------- 主体 ---------------- */
-  .layout{display:grid;grid-template-columns:minmax(0,1fr) 366px;gap:26px;align-items:start}
-  @media(max-width:1180px){.layout{grid-template-columns:1fr}}
+  /* ------------------------------------------------ 城市选择器 */
+  .cp{position:relative}
+  .cp-btn{display:flex;align-items:center;gap:9px;min-width:132px;justify-content:space-between;background:var(--panel-2);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px}
+  .cp-btn.on{border-color:var(--amber-line);color:var(--amber);background:var(--amber-soft)}
+  .cp-btn .caret{color:var(--dim);font-size:8px}
+  .cp-pop{position:absolute;z-index:60;top:calc(100% + 7px);left:0;width:352px;background:#11141a;border:1px solid var(--line-2);border-radius:13px;
+    box-shadow:0 24px 60px rgba(0,0,0,.68),inset 0 1px 0 rgba(255,255,255,.03);padding:10px;display:none;animation:pop .18s var(--ease)}
+  @keyframes pop{from{opacity:0;transform:translateY(-5px) scale(.99)}to{opacity:1;transform:none}}
+  .cp-pop.open{display:block}
+  .cp-search{width:100%;margin-bottom:6px;background:var(--panel-2)!important;color:var(--text)!important;-webkit-text-fill-color:var(--text)!important}
+  .cp-hint{color:var(--dim);font-size:10px;margin:0 2px 7px;letter-spacing:.02em}
+  .cp-body{display:flex;gap:4px;max-height:300px}
+  .cp-list{flex:1;overflow:auto;scrollbar-width:thin;scrollbar-color:#2d3140 transparent}
+  .cp-group{position:sticky;top:0;background:#11141a;color:var(--amber);font-family:var(--mono);font-size:10px;font-weight:700;padding:4px 5px;letter-spacing:.14em;z-index:1}
+  .cp-item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;font-size:12.5px;cursor:pointer}
+  .cp-item:hover{background:var(--panel-3)}
+  .cp-item.sel{background:var(--amber-soft);color:var(--amber)}
+  .cp-item .meta{color:var(--dim);font-size:10.5px;font-family:var(--mono);white-space:nowrap}
+  .cp-item .meta b{color:var(--muted);font-weight:600}
+  .cp-item.zero{opacity:.4}
+  .cp-index{flex:none;display:flex;flex-direction:column;gap:1px;overflow:auto;padding:0 1px 0 3px;scrollbar-width:none;border-left:1px solid var(--line);margin-left:2px}
+  .cp-idx{font-family:var(--mono);font-size:9.5px;color:var(--dim);padding:1px 4px;border-radius:4px;cursor:pointer;text-align:center;min-width:16px}
+  .cp-idx:hover,.cp-idx.on{background:var(--amber);color:#1a1400;font-weight:700}
+  .cp-empty{color:var(--dim);font-size:11.5px;padding:16px 8px;text-align:center}
 
-  .thead{display:grid;grid-template-columns:minmax(210px,1.5fr) minmax(150px,1.1fr) 158px 128px;
-    gap:14px;padding:0 14px 9px;color:var(--dim);font-size:10.5px;letter-spacing:.14em;
-    text-transform:uppercase;border-bottom:1px solid var(--line)}
+  /* ------------------------------------------------ 顺风车列表 */
+  .layout{display:grid;grid-template-columns:minmax(0,1fr) 356px;gap:24px;align-items:start}
+  .thead{display:grid;grid-template-columns:minmax(200px,1.45fr) minmax(150px,1.05fr) 152px 124px;gap:14px;padding:0 13px 8px;color:var(--dim);font-size:10px;letter-spacing:.13em;text-transform:uppercase;border-bottom:1px solid var(--line)}
   .rows{display:flex;flex-direction:column}
-  .row{display:grid;grid-template-columns:minmax(210px,1.5fr) minmax(150px,1.1fr) 158px 128px;
-    gap:14px;align-items:center;padding:12px 14px;border-bottom:1px solid #1a1c23;
-    position:relative;transition:.16s var(--ease);animation:rise .32s var(--ease) both}
+  .hrow{display:grid;grid-template-columns:minmax(200px,1.45fr) minmax(150px,1.05fr) 152px 124px;gap:14px;align-items:center;padding:11px 13px;border-bottom:1px solid #191b22;position:relative;transition:.16s var(--ease);animation:rise .3s var(--ease) both}
   @keyframes rise{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
-  .row:hover{background:var(--ink-2)}
-  .row.hit{background:linear-gradient(90deg,rgba(247,185,85,.055),transparent 42%)}
-  .row.hit::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:2px;
-    background:var(--amber);border-radius:0 2px 2px 0}
-  .row.locked{opacity:.5}
-  .row.locked .price b{color:var(--dim);text-decoration:line-through}
-
-  .route{display:flex;align-items:center;gap:9px;min-width:0;font-size:14.5px;font-weight:600}
+  .hrow:hover{background:var(--panel)}
+  .hrow.hit{background:linear-gradient(90deg,rgba(255,184,77,.055),transparent 42%)}
+  .hrow.hit::before{content:"";position:absolute;left:0;top:8px;bottom:8px;width:2px;background:var(--amber);border-radius:0 2px 2px 0}
+  .hrow.locked{opacity:.48}
+  .hrow.locked .price b{color:var(--dim);text-decoration:line-through}
+  .route{display:flex;align-items:center;gap:8px;min-width:0;font-size:14px;font-weight:600}
   .route .city{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .track{flex:1;min-width:26px;height:1px;position:relative;
-    background-image:linear-gradient(90deg,#3a3d49 0 4px,transparent 4px 8px);
-    background-size:8px 1px;background-repeat:repeat-x}
-  .track::before,.track::after{content:"";position:absolute;top:-2px;width:5px;height:5px;
-    border-radius:50%;background:#4a4d5a}
-  .track::before{left:0}
-  .track::after{right:0;background:var(--amber);box-shadow:0 0 0 3px rgba(247,185,85,.12)}
-
-  .model{min-width:0;font-size:13px;color:var(--paper-2);display:flex;flex-direction:column;gap:2px}
+  .track{flex:1;min-width:22px;height:1px;position:relative;background-image:linear-gradient(90deg,#3a3d49 0 4px,transparent 4px 8px);background-size:8px 1px;background-repeat:repeat-x}
+  .track::before,.track::after{content:"";position:absolute;top:-2px;width:5px;height:5px;border-radius:50%;background:#4a4d5a}
+  .track::before{left:0}.track::after{right:0;background:var(--amber);box-shadow:0 0 0 3px rgba(255,184,77,.12)}
+  .model{min-width:0;font-size:12.5px;color:var(--text-2);display:flex;flex-direction:column;gap:2px}
   .model .m{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .model .b{color:var(--dim);font-size:11px;letter-spacing:.03em}
-  .when{font-family:var(--mono);font-size:12px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
-  .when .d{color:var(--paper-2)}
-  .when .t{color:var(--dim);font-size:11px}
-  .price{text-align:right;display:flex;align-items:baseline;justify-content:flex-end;gap:5px}
-  .price b{font-family:var(--mono);font-size:21px;font-weight:650;color:var(--amber);
-    letter-spacing:-.04em;font-variant-numeric:tabular-nums}
-  .price .u{font-size:11px;color:var(--dim)}
-  .price s{color:var(--dim);font-size:11px;text-decoration-thickness:1px}
-  .st{position:absolute;right:0;top:10px;font-size:0}
+  .model .b{color:var(--dim);font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .when{font-family:var(--mono);font-size:11px;color:var(--muted);display:flex;flex-direction:column;gap:3px}
+  .when .d{color:var(--text-2)}.when .t{color:var(--dim);font-size:10px}
+  .price{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:1px}
+  .price .main{display:flex;align-items:baseline;gap:4px}
+  .price b{font-family:var(--mono);font-size:20px;font-weight:650;color:var(--amber);letter-spacing:-.04em;font-variant-numeric:tabular-nums}
+  .price .u{font-size:10px;color:var(--dim)}
+  .price s{color:var(--dim);font-size:10px;text-decoration-thickness:1px}
+  .price .pd{color:var(--dim);font-family:var(--mono);font-size:9.5px}
+  .empty{color:var(--dim);text-align:center;padding:56px 20px;font-size:12.5px;border:1px dashed var(--line);border-radius:var(--r-lg);margin-top:14px;line-height:1.8}
+  .empty code{background:var(--panel-3);padding:1px 5px;border-radius:4px;color:var(--muted);font-size:11px}
 
-  @media(max-width:820px){
-    .thead{display:none}
-    .row{grid-template-columns:1fr auto;gap:6px 10px;padding:13px 12px}
-    .row .route{grid-column:1}
-    .row .price{grid-column:2;grid-row:1}
-    .row .model{grid-column:1}
-    .row .when{grid-column:1;flex-direction:row;gap:8px}
-    .track{max-width:70px}
-  }
-
-  .empty{color:var(--dim);text-align:center;padding:64px 20px;font-size:13px;
-    border:1px dashed var(--line);border-radius:var(--r-lg);margin-top:16px}
-
-  /* ---------------- 侧栏 ---------------- */
-  aside{position:sticky;top:148px;display:flex;flex-direction:column;gap:14px}
-  .panel{background:var(--ink-2);border:1px solid var(--line);border-radius:var(--r-lg);padding:16px 17px}
-  .panel h2{font-size:11px;margin:0;letter-spacing:.14em;color:var(--dim);
-    font-weight:600;text-transform:uppercase}
-  .panel .hint{color:var(--dim);font-size:11.5px;line-height:1.65;margin-top:9px}
-  .panel .hint code{background:var(--ink-4);padding:1px 5px;border-radius:4px;color:var(--muted);font-size:11px}
-
-  .fc-head{display:flex;gap:8px;margin:12px 0 4px}
-  .ring{display:flex;align-items:center;gap:15px;margin:12px 0 14px}
-  .ring svg{flex:none}
-  .ring .num{font-family:var(--mono);font-size:30px;font-weight:650;line-height:1;
-    letter-spacing:-.03em;font-variant-numeric:tabular-nums}
-  .ring .lbl{color:var(--muted);font-size:11.5px;margin-top:6px;line-height:1.4}
-
-  .kv{display:flex;flex-direction:column;gap:8px;margin-top:6px}
-  .kv .r{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--muted)}
-  .kv .r b{color:var(--paper);font-family:var(--mono);font-weight:600;font-variant-numeric:tabular-nums}
+  /* ------------------------------------------------ 侧栏 */
+  aside{position:sticky;top:136px;display:flex;flex-direction:column;gap:12px}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r-lg);padding:15px 16px;min-width:0}
+  .panel h3{font-size:10px;margin:0;letter-spacing:.14em;color:var(--dim);font-weight:600;text-transform:uppercase;display:flex;justify-content:space-between;gap:8px}
+  .panel .hint{color:var(--dim);font-size:11px;line-height:1.65;margin-top:8px}
+  .panel .hint code{background:var(--panel-3);padding:1px 5px;border-radius:4px;color:var(--muted);font-size:10.5px}
+  .mail-cta{background:linear-gradient(155deg,rgba(255,184,77,.08),rgba(255,184,77,.015) 50%,transparent),var(--panel);border-color:var(--amber-line)}
+  .mail-cta h3{color:var(--amber)}
+  .mail-cta .big{font-size:14px;line-height:1.45;color:var(--text);margin:10px 0 4px;font-weight:600}
+  .mail-cta .small{color:var(--muted);font-size:11px;line-height:1.65}
+  .mail-cta .go{width:100%;margin-top:11px;background:var(--amber);border-color:var(--amber);color:#1a1400;font-weight:650;font-size:12px;padding:9px 11px}
+  .mail-cta .go:hover{background:#ffc96f;color:#1a1400}
+  .mail-cta .go.off{background:transparent;border-color:var(--amber-line);color:var(--amber)}
+  .kv{display:flex;flex-direction:column;gap:7px;margin-top:8px}
+  .kv .r{display:flex;justify-content:space-between;align-items:baseline;font-size:12px;color:var(--muted)}
+  .kv .r b{color:var(--text);font-family:var(--mono);font-weight:600}
   .kv .r b small{font-family:var(--sans);color:var(--dim);font-weight:400;margin-left:3px}
-
-  .alog{display:flex;flex-direction:column;margin-top:10px;max-height:320px;overflow:auto;
-    scrollbar-width:thin;scrollbar-color:#2f323d transparent}
-  .alog .it{display:flex;gap:8px;align-items:baseline;padding:7px 2px;border-bottom:1px dashed var(--line);
-    font-size:12px;line-height:1.5}
+  .alog{display:flex;flex-direction:column;margin-top:8px;max-height:300px;overflow:auto;scrollbar-width:thin;scrollbar-color:#2d3140 transparent}
+  .alog .it{display:flex;gap:8px;align-items:baseline;padding:7px 2px;border-bottom:1px dashed var(--line);font-size:11.5px;line-height:1.5}
   .alog .it:last-child{border-bottom:0}
-  .alog .ic{flex:none;width:18px;text-align:center}
+  .alog .ic{flex:none;width:17px;text-align:center}
   .alog .bd{flex:1;min-width:0}
-  .alog .rt{color:var(--paper);font-weight:600}
+  .alog .rt{color:var(--text);font-weight:600}
   .alog .md{color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;display:block}
-  .alog .pf{color:var(--amber);font-size:10.5px;margin-left:4px}
-  .alog .tm{flex:none;color:var(--dim);font-family:var(--mono);font-size:10.5px;white-space:nowrap}
+  .alog .pf{color:var(--amber);font-size:10px;margin-left:4px}
+  .alog .tm{flex:none;color:var(--dim);font-family:var(--mono);font-size:9.5px;white-space:nowrap}
   .alog .pr{color:var(--amber);font-family:var(--mono);font-weight:600;margin-left:5px}
-  .alog .pr s{color:var(--dim);font-weight:400;margin-left:4px}
-
-  .bars{display:flex;align-items:flex-end;gap:5px;height:66px;margin-top:10px}
-  .bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;height:100%;justify-content:flex-end}
-  .bar i{display:block;width:100%;background:linear-gradient(180deg,var(--amber),#6b4f14);
-    border-radius:3px 3px 1px 1px;min-height:2px;transition:height .4s var(--ease)}
-  .bar span{font-size:9.5px;color:var(--dim);font-family:var(--mono)}
-  .bar b{font-size:9.5px;color:var(--muted);font-family:var(--mono)}
-
-  .watch-rule{background:var(--ink-3);border:1px solid var(--line);border-radius:10px;
-    padding:10px 12px;font-size:12px;color:var(--muted);line-height:1.75;margin-top:12px;word-break:break-word}
-  .watch-rule b{color:var(--amber);font-weight:600}
-  .watch-rule code{background:#1e2129;padding:1px 5px;border-radius:4px;font-size:11px}
-  .subform{display:flex;gap:8px;margin-top:10px}
-  .subform input{flex:1;min-width:0}
-  .subform button{flex:none;background:var(--amber);border-color:var(--amber);color:#1a1400;font-weight:600}
-  .subform button:hover{background:var(--amber-bg);color:var(--amber)}
-  .subform button:disabled{opacity:.45;cursor:not-allowed}
-  #remoteSubs{margin-top:4px}
-  .watch-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
-  .watch-actions button{flex:1;min-width:118px;font-size:12px;padding:8px 10px}
-  .prof{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted);
-    padding:6px 0;border-top:1px dashed var(--line)}
+  .bars{display:flex;align-items:flex-end;gap:5px;height:57px;margin-top:9px}
+  .bar{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;height:100%;justify-content:flex-end}
+  .bar i{display:block;width:100%;background:linear-gradient(180deg,var(--amber),#6b4f14);border-radius:3px 3px 1px 1px;min-height:2px;transition:height .4s var(--ease)}
+  .bar span{font-size:9px;color:var(--dim);font-family:var(--mono)}
+  .bar b{font-size:9px;color:var(--muted);font-family:var(--mono)}
+  .prof{display:flex;justify-content:space-between;gap:10px;font-size:11.5px;color:var(--muted);padding:6px 0;border-top:1px dashed var(--line)}
   .prof:first-of-type{border-top:0}
-  .prof b{color:var(--paper);font-weight:600;white-space:nowrap}
-  .prof span{color:var(--dim);text-align:right}
+  .prof b{color:var(--text);font-weight:600;white-space:nowrap}
+  .prof span{color:var(--dim);text-align:right;overflow:hidden;text-overflow:ellipsis}
 
-  .foot{color:var(--dim);font-size:11px;line-height:1.8;margin-top:14px;letter-spacing:.02em}
-  .err{background:#231015;border:1px solid #4a2230;color:#ffb3c1;padding:16px 18px;
-    border-radius:var(--r-lg);font-size:13px;line-height:1.75}
+  /* ------------------------------------------------ 长租 */
+  .rental-head{padding-top:30px}
+  .rental-head .pagehead{padding-top:0}
+  .rental-controls{display:flex;flex-direction:column;gap:9px;padding:12px 0 13px;margin-bottom:14px;border-top:1px solid var(--line);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:24;background:rgba(8,9,12,.9);backdrop-filter:blur(15px);-webkit-backdrop-filter:blur(15px)}
+  .periods{display:flex;gap:6px;flex-wrap:wrap}
+  .period{border:1px solid var(--line);background:var(--panel);border-radius:10px;padding:8px 13px;text-align:left;min-width:98px}
+  .period small{display:block;color:var(--dim);font-size:9.5px;margin-top:2px;font-family:var(--mono)}
+  .period b{font-family:var(--mono);font-size:16px;font-weight:600;letter-spacing:-.03em}
+  .period:hover{border-color:var(--line-2);color:var(--text)}
+  .period.on{background:var(--amber-soft);border-color:var(--amber);color:var(--amber)}
+  .period.on small{color:#9a7838}
+  .rwindow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 11px;padding:8px 11px;
+    border:1px dashed var(--line-2);border-radius:9px;background:var(--panel);color:var(--muted);font-size:11.5px}
+  .rwindow b{color:var(--text);font-family:var(--mono);font-weight:600}
+  .rwindow .arrow{color:var(--amber)}
+  .rwindow .tagline{color:var(--dim);margin-left:auto}
+  .rlayout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:24px;align-items:start}
+  .rthead,.deal{display:grid;grid-template-columns:minmax(160px,1.15fr) minmax(170px,1.35fr) 102px 104px 128px;gap:12px;align-items:center}
+  .rthead{padding:0 13px 8px;color:var(--dim);font-size:10px;letter-spacing:.13em;text-transform:uppercase;border-bottom:1px solid var(--line)}
+  .rthead span:nth-child(n+3){text-align:right}
+  .rrows{display:flex;flex-direction:column}
+  .deal{padding:11px 13px;border-bottom:1px solid #191b22;position:relative;transition:.16s var(--ease);animation:rise .3s var(--ease) both}
+  .deal:hover{background:var(--panel)}
+  .deal.great::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:2px;background:var(--rose);border-radius:0 2px 2px 0}
+  .deal.good::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:2px;background:var(--amber);border-radius:0 2px 2px 0}
+  .deal-city{min-width:0;display:flex;align-items:center;gap:9px}
+  .deal-pic{width:43px;height:34px;border-radius:6px;object-fit:cover;background:var(--panel-3);border:1px solid var(--line);flex:none}
+  .deal-city .txt{min-width:0}
+  .deal-city b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .deal-city span{display:block;color:var(--dim);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .deal-city span.range{color:var(--muted);font-family:var(--mono);font-size:9.5px}
+  .deal-model{min-width:0}
+  .deal-model b{display:block;font-size:12.5px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .deal-model span{display:block;color:var(--dim);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
+  .deal-day{text-align:right}
+  .deal-day b{font-family:var(--mono);font-size:24px;font-weight:650;color:var(--amber);letter-spacing:-.04em;line-height:1}
+  .deal-day span{color:var(--dim);font-size:10px;margin-left:2px}
+  .deal-total{text-align:right}
+  .deal-total b{display:block;font-family:var(--mono);font-size:13px;font-weight:600;color:var(--text-2)}
+  .deal-total span{display:block;color:var(--dim);font-size:9.5px;margin-top:2px}
+  .deal-save{text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+  .tag{font-size:9.5px;padding:2px 6px;border-radius:999px;border:1px solid var(--line);color:var(--muted);white-space:nowrap}
+  .tag.great{color:var(--rose);border-color:#4b2630;background:#231015}
+  .tag.good{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+  .tag.fair{color:var(--jade);border-color:#204a39;background:#10251d}
+  .deal-save s{color:var(--dim);font-size:9.5px;text-decoration-thickness:1px}
+  .rlead{display:flex;flex-direction:column;gap:1px;margin-top:7px}
+  .lrow{display:flex;align-items:center;gap:8px;padding:6px 2px;border-bottom:1px dashed var(--line);font-size:11.5px;cursor:pointer}
+  .lrow:last-child{border-bottom:0}
+  .lrow:hover{background:var(--panel-2)}
+  .lrank{width:15px;flex:none;color:var(--dim);font-family:var(--mono);font-size:9.5px;text-align:right}
+  .lcity{color:var(--text-2);min-width:48px;font-weight:600}
+  .lmodel{color:var(--dim);flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:10.5px}
+  .lprice{color:var(--amber);font-family:var(--mono);font-weight:600;white-space:nowrap}
+  .lprice small{color:var(--dim);font-size:9px;font-weight:400;margin-left:2px}
+  .lrow .lsave{color:var(--rose);font-family:var(--mono);font-size:10px;min-width:34px;text-align:right}
+  .rnote{color:var(--dim);font-size:10.5px;line-height:1.7;margin-top:8px}
+  .rnote b{color:var(--muted);font-weight:600}
+
+  /* ------------------------------------------------ 邮件抽屉 */
+  .scrim{position:fixed;inset:0;background:rgba(0,0,0,.62);backdrop-filter:blur(2px);z-index:80;opacity:0;pointer-events:none;transition:opacity .22s var(--ease)}
+  .scrim.show{opacity:1;pointer-events:auto}
+  .drawer{position:fixed;top:0;right:0;bottom:0;width:min(452px,100vw);background:#0c0e13;border-left:1px solid var(--line-2);z-index:81;
+    transform:translateX(100%);transition:transform .3s var(--ease);overflow:auto;box-shadow:-32px 0 70px rgba(0,0,0,.55)}
+  .drawer.show{transform:none}
+  .drawer-head{position:sticky;top:0;z-index:2;background:rgba(12,14,19,.94);backdrop-filter:blur(12px);padding:18px 20px 14px;border-bottom:1px solid var(--line);display:flex;align-items:flex-start;gap:12px}
+  .drawer-head h2{margin:5px 0 0;font-size:20px;font-weight:650;letter-spacing:-.02em}
+  .drawer-head p{margin:5px 0 0;color:var(--dim);font-size:11px;line-height:1.5}
+  .drawer-head .close{margin-left:auto;border:0;background:transparent;font-size:20px;line-height:1;color:var(--dim);padding:3px 5px}
+  .drawer-head .close:hover{color:var(--text);background:transparent}
+  .drawer-body{padding:16px 20px 40px}
+  .mail-rule{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:11px 12px;font-size:12px;color:var(--muted);line-height:1.7;word-break:break-word}
+  .mail-rule b{color:var(--amber)}
+  .step{display:flex;gap:11px;padding:15px 0;border-bottom:1px dashed var(--line)}
+  .step:last-of-type{border-bottom:0}
+  .stepno{flex:none;width:22px;height:22px;border-radius:50%;border:1px solid var(--amber-line);background:var(--amber-soft);color:var(--amber);font-family:var(--mono);font-size:9px;display:grid;place-items:center;margin-top:2px}
+  .step-body{flex:1;min-width:0}
+  .step h3{margin:0;font-size:12.5px;font-weight:600;color:var(--text)}
+  .step p{margin:4px 0 0;color:var(--dim);font-size:10.5px;line-height:1.6}
+  .step input{width:100%;margin-top:8px}
+  .checks{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:9px}
+  .check{display:flex;align-items:center;gap:7px;font-size:11.5px;color:var(--muted);background:var(--panel);border:1px solid var(--line);border-radius:7px;padding:7px 8px;cursor:pointer}
+  .check input{width:13px;height:13px;padding:0;accent-color:var(--amber);margin:0}
+  .check:hover{border-color:var(--line-2);color:var(--text)}
+  .mail-status{display:flex;flex-direction:column;gap:6px;margin-top:12px;padding:10px 11px;border-radius:9px;border:1px solid var(--line);background:var(--panel);font-size:10.5px;line-height:1.55;color:var(--muted)}
+  .mail-status .r{display:flex;align-items:center;gap:7px}
+  .mail-status .dot{width:6px;height:6px;border-radius:50%;background:var(--dim);flex:none}
+  .mail-status .dot.on{background:var(--jade)}
+  .mail-status .dot.warn{background:var(--amber)}
+  .mail-status b{color:var(--text-2);font-weight:600}
+  .primary{width:100%;margin-top:12px;background:var(--amber);border-color:var(--amber);color:#1a1400;font-weight:650;padding:10px 13px;font-size:12.5px}
+  .primary:hover{background:#ffc96f;color:#1a1400}
+  .primary:disabled{opacity:.42;cursor:not-allowed;background:var(--panel-2);border-color:var(--line);color:var(--dim)}
+  .privacy{margin:9px 0 0;color:var(--dim);font-size:10px;line-height:1.65}
+  .privacy b{color:var(--muted);font-weight:600}
+  .drawer details{margin-top:10px;border-top:1px dashed var(--line);padding-top:9px}
+  .drawer summary{color:var(--dim);font-size:11px;cursor:pointer;list-style:none}
+  .drawer summary::-webkit-details-marker{display:none}
+  .drawer summary:before{content:"＋ ";color:var(--amber);font-family:var(--mono)}
+  .drawer details[open] summary:before{content:"－ "}
+  .drawer details .hint{color:var(--dim);font-size:10.5px;line-height:1.65;margin-top:7px}
+  .drawer details code{background:var(--panel-3);padding:1px 4px;border-radius:3px;font-size:10px;color:var(--muted)}
+  .drawer .mini-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+  .drawer .mini-actions button{font-size:10.5px;padding:6px 8px}
+  #remoteSubs{margin-top:4px}
+  #remoteSubs .prof{font-size:11px}
+  #remoteSubs .prof b a{color:var(--text-2)}
+  #remoteSubs .prof b a:hover{color:var(--amber)}
+
+  /* ------------------------------------------------ 状态 */
+  .foot{color:var(--dim);font-size:10.5px;line-height:1.8;margin-top:16px;letter-spacing:.02em;border-top:1px solid var(--line);padding-top:12px}
+  .err{background:#231015;border:1px solid #4a2230;color:#ffb3c1;padding:14px 16px;border-radius:14px;font-size:12.5px;line-height:1.75;margin-top:14px}
   .err code{background:#1a0e12;padding:1px 6px;border-radius:5px;color:#ffd7e0}
-  .toast{position:fixed;left:50%;bottom:30px;transform:translateX(-50%) translateY(16px);
-    background:#1b1e27;border:1px solid var(--amber-line);color:var(--paper);
-    padding:10px 18px;border-radius:10px;font-size:13px;opacity:0;pointer-events:none;
-    transition:.28s var(--ease);z-index:99;box-shadow:0 16px 40px rgba(0,0,0,.5)}
+  .toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%) translateY(14px);background:#1a1d26;border:1px solid var(--amber-line);color:var(--text);
+    padding:9px 16px;border-radius:9px;font-size:12.5px;opacity:0;pointer-events:none;transition:.25s var(--ease);z-index:99;box-shadow:0 16px 40px rgba(0,0,0,.5)}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
-  .skeleton{height:52px;border-radius:8px;margin:8px 0;
-    background:linear-gradient(90deg,#15171e 25%,#1b1e27 37%,#15171e 63%);
-    background-size:400% 100%;animation:shimmer 1.3s infinite}
+  .skeleton{height:50px;border-radius:8px;margin:7px 0;background:linear-gradient(90deg,#15171e 25%,#1b1e27 37%,#15171e 63%);background-size:400% 100%;animation:shimmer 1.3s infinite}
   @keyframes shimmer{0%{background-position:100% 0}100%{background-position:-100% 0}}
 
-  /* ---------------- 移动端 ---------------- */
-  @media(max-width:640px){
-    .wrap{padding:18px 14px 52px}
-    .masthead{flex-direction:column;align-items:flex-start;gap:13px}
-    .toolbar{width:100%;justify-content:space-between}
-    .live{font-size:11px;padding:6px 11px;gap:7px}
-    h1{font-size:17px}
-    h1 em{display:none}
-    .board{grid-template-columns:repeat(2,1fr)}
-    .fig{padding:13px 14px}
-    .fig:last-child{grid-column:1/-1;border-top:1px solid var(--line)}
-    .rail{position:static;padding:10px 0;margin-bottom:12px;backdrop-filter:none;
-      -webkit-backdrop-filter:none;background:transparent;box-shadow:none}
-    .chips{flex-wrap:wrap;overflow-x:hidden;overflow-y:auto;max-height:76px;
-      -webkit-mask-image:none;mask-image:none}
-    aside{position:static}
-    .cp-pop{width:min(364px,calc(100vw - 40px))}
-    .price b{font-size:19px}
+  /* ------------------------------------------------ 响应式 */
+  @media(max-width:1180px){
+    .layout,.rlayout{grid-template-columns:1fr}
+    aside{position:static;display:grid;grid-template-columns:repeat(3,1fr)}
+    .rlayout aside{grid-template-columns:repeat(2,1fr)}
+    .panel{min-width:0}
+    .rthead,.deal{grid-template-columns:minmax(150px,1.1fr) minmax(160px,1.2fr) 92px 96px 112px}
   }
-
+  @media(max-width:900px){
+    .board{grid-template-columns:repeat(3,1fr)}
+    .fig{padding:13px 14px}
+    .topbar{gap:12px}
+    .modes{order:3;width:100%}
+    .mode-btn{flex:1;text-align:center}
+    .top-actions{margin-left:auto}
+    .pagehead{align-items:flex-start}
+    .head-stat{text-align:left}
+    .rthead,.deal{grid-template-columns:minmax(140px,1.1fr) minmax(150px,1.2fr) 90px 100px}
+    .rthead span:last-child,.deal-save{display:none}
+    aside{grid-template-columns:1fr 1fr}
+    .mail-cta{grid-column:1/-1}
+  }
+  @media(max-width:700px){
+    .shell{padding:0 14px 64px}
+    .topbar{padding:14px 14px 12px}
+    .brand h1{font-size:16px}
+    .brand p{display:none}
+    .sync{font-size:10px;padding:6px 9px}
+    .sync .long{display:none}
+    .modes{order:3;width:100%}
+    .mode-btn{padding:7px 8px;font-size:12px}
+    .pagehead{padding:22px 0 14px}
+    .pagehead h2{font-size:26px}
+    .head-stat .v{font-size:34px}
+    .board{grid-template-columns:repeat(2,1fr)}
+    .fig{padding:12px 12px}
+    .fig:nth-child(n){border-left:0}
+    .fig:nth-child(even){border-left:1px solid var(--line);padding-left:12px}
+    .fig:last-child{grid-column:1/-1;border-top:1px solid var(--line)}
+    .rail{position:static;backdrop-filter:none;-webkit-backdrop-filter:none;background:transparent;box-shadow:none;padding:10px 0}
+    .rail .frow{gap:7px}
+    .chips{flex-wrap:wrap;overflow-x:hidden;max-height:78px;mask-image:none;-webkit-mask-image:none}
+    .thead{display:none}
+    .hrow{grid-template-columns:1fr auto;gap:5px 10px;padding:12px 11px}
+    .hrow .route{grid-column:1}.hrow .price{grid-column:2;grid-row:1}
+    .hrow .model{grid-column:1}.hrow .when{grid-column:1;flex-direction:row;gap:8px}
+    .track{max-width:64px}
+    .price b{font-size:18px}
+    aside,.rlayout aside{grid-template-columns:1fr}
+    .cp-pop{width:min(352px,calc(100vw - 44px))}
+    .rental-controls{position:static;backdrop-filter:none;background:transparent}
+    .periods{overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}
+    .period{min-width:90px;flex:none}
+    .rthead{display:none}
+    .deal{grid-template-columns:1fr auto;gap:5px 10px;padding:12px 10px}
+    .deal-city{grid-column:1;grid-row:1}
+    .deal-model{grid-column:1;grid-row:2}
+    .deal-day{grid-column:2;grid-row:1}
+    .deal-total{grid-column:2;grid-row:2}
+    .deal-save{display:none}
+    .deal-pic{display:none}
+    .drawer{width:100vw;border-left:0}
+    .drawer-body{padding:14px 16px 32px}
+  }
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header class="masthead">
-    <div class="brand">
-      <div class="mark" aria-hidden="true">⇄</div>
-      <div>
-        <h1>神州顺风车 <em>REPOSITIONING BOARD</em></h1>
-        <p class="tagline" id="tagline">把需要调回外地的车，用补贴价开走</p>
-      </div>
+<header class="topbar">
+  <div class="brand">
+    <div class="mark" aria-hidden="true">⇄</div>
+    <div>
+      <h1>神州车价 <span>ZUCHE BOARD</span></h1>
+      <p>顺风车 · 周租 · 半月租 · 月租</p>
     </div>
-    <div class="toolbar">
-      <div class="live"><span class="dot"></span> 在售 <b id="liveN">—</b> · 观测 <b id="obsN">0</b> 天 · <span id="genAt">加载中</span></div>
-      <button id="reload" title="重新读取 dashboard.json">刷新</button>
-    </div>
-  </header>
+  </div>
+  <nav class="modes" aria-label="行情类型">
+    <button class="mode-btn on" data-mode="hitch">顺风车<small>REPOSITION</small></button>
+    <button class="mode-btn" data-mode="rental">长租好价<small>LONG STAY</small></button>
+  </nav>
+  <div class="top-actions">
+    <div class="sync" id="syncState"><span class="dot"></span><span id="syncText">读取数据中</span></div>
+    <button class="icon-btn mail-open" id="mailOpen"><span class="badge"></span>邮件提醒</button>
+    <button class="icon-btn" id="reload" title="立即重新读取数据">刷新</button>
+  </div>
+</header>
 
+<div class="shell">
   <div id="banner"></div>
 
-  <section class="board" id="board"></section>
-
-  <section class="rail">
-    <div class="frow">
-      <div class="field"><label>取车</label><div class="cp" id="fromPicker"></div></div>
-      <div class="field"><label>还车</label><div class="cp" id="toPicker"></div></div>
-      <div class="field"><label>价格≤</label>
-        <input id="maxp" type="number" min="0" step="50" style="width:82px" placeholder="不限"></div>
-      <div class="seg" id="statusSeg">
-        <button data-v="all" class="on">全部</button>
-        <button data-v="available">可预订</button>
-        <button data-v="locked">被锁定</button>
+  <section class="view" id="hitchView">
+    <header class="pagehead">
+      <div>
+        <p class="eyebrow">NATIONAL REPOSITIONING BOARD / 全国调度</p>
+        <h2>把要调回外地的车<br><em>用补贴价开走</em></h2>
+        <p class="sub">顺风车是租车公司的异地调车：从 A 城取车、B 城还车，租金远低于普通日租。每 15 分钟同步一次 App 在售数据。</p>
       </div>
-      <div class="field"><label>排序</label>
-        <select id="sort">
-          <option value="price">价格最低</option>
-          <option value="discount">折扣最大</option>
-          <option value="date">取车最早</option>
-          <option value="days">租期最长</option>
-        </select>
+      <div class="head-stat">
+        <div class="v"><span id="heroMin">—</span><small>元起/天</small></div>
+        <div class="k">当前最低日均</div>
       </div>
-      <div class="spacer"></div>
-      <div class="field"><span style="color:var(--dim);font-size:12px" id="count">—</span></div>
-    </div>
+    </header>
 
-    <div class="frow">
-      <span class="chip-lbl">品牌</span>
-      <div class="chips" id="brandChips"></div>
-      <button class="ghost" id="brandClear">清空</button>
-    </div>
+    <section class="board" id="board"></section>
 
-    <div class="frow">
-      <div class="field"><label>车型</label>
-        <input id="q" placeholder="车系关键词，如 帕萨特 / L7" autocomplete="off"></div>
-      <div class="routebar" id="routeBar"></div>
-      <div class="spacer"></div>
-      <button class="ghost" id="onlyWatch">☆ 只看关注</button>
-      <button class="ghost" id="reset">重置</button>
+    <section class="rail">
+      <div class="frow">
+        <div class="field"><label>取车</label><div class="cp" id="fromPicker"></div></div>
+        <div class="field"><label>还车</label><div class="cp" id="toPicker"></div></div>
+        <div class="field"><label>总价≤</label><input id="maxp" type="number" min="0" step="50" style="width:78px" placeholder="不限"></div>
+        <div class="seg" id="statusSeg">
+          <button data-v="all" class="on">全部</button>
+          <button data-v="available">可预订</button>
+          <button data-v="locked">被锁定</button>
+        </div>
+        <div class="field"><label>排序</label>
+          <select id="sort">
+            <option value="price">总价最低</option>
+            <option value="perday">日均最低</option>
+            <option value="discount">折扣最大</option>
+            <option value="date">取车最早</option>
+            <option value="days">租期最长</option>
+          </select>
+        </div>
+        <div class="spacer"></div>
+        <span class="lbl" id="count">—</span>
+      </div>
+      <div class="frow">
+        <span class="lbl">品牌</span>
+        <div class="chips" id="brandChips"></div>
+        <button class="ghost" id="brandClear">清空</button>
+      </div>
+      <div class="frow">
+        <div class="field"><label>车型</label><input id="q" placeholder="车系关键词，如 帕萨特" autocomplete="off"></div>
+        <div class="routebar" id="routeBar"></div>
+        <div class="spacer"></div>
+        <button class="ghost" id="onlyWatch">☆ 只看关注</button>
+        <button class="ghost" id="reset">重置</button>
+      </div>
+    </section>
+
+    <div class="layout">
+      <main>
+        <div class="thead"><span>路线</span><span>车型</span><span>取车 → 还车</span><span style="text-align:right">总价</span></div>
+        <div class="rows" id="list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      </main>
+      <aside>
+        <div class="panel mail-cta">
+          <h3>MAIL ALERT / 邮件提醒</h3>
+          <div class="big" id="mailCtaTitle">选好条件，命中就发信</div>
+          <div class="small" id="mailCtaDesc">城市、路线、品牌、价格都可以组合；开启后每轮监控自动检查。</div>
+          <button class="go off" id="mailCta">设置邮件提醒 →</button>
+        </div>
+        <div class="panel">
+          <h3>预警监控 <span class="num" id="watchCount">—</span></h3>
+          <div class="kv" id="watchState"></div>
+          <div class="alog" id="alertLog"></div>
+          <div class="hint" id="alertHint"></div>
+        </div>
+        <div class="panel">
+          <h3>观测节奏</h3>
+          <div id="trend"></div>
+          <div class="hint">按「新车上架」的历史频率做泊松外推，不是官方排期；跑得越久越准。</div>
+        </div>
+      </aside>
     </div>
   </section>
 
-  <div class="layout">
-    <main>
-      <div class="thead">
-        <span>路线</span><span>车型</span><span>取车 → 还车</span><span style="text-align:right">总价</span>
+  <section class="view" id="rentalView" hidden>
+    <header class="pagehead rental-head">
+      <div>
+        <p class="eyebrow">LONG STAY / 城市长租行情</p>
+        <h2>周租、半月、月租<br><em>哪座城市最便宜</em></h2>
+        <p class="sub">同一取车日、同一城市，按 7 / 15 / 30 天分别计算「车辆租金 + 出行服务费」。看到的是含服务费的总价，不是只标租金的假低价。</p>
       </div>
-      <div class="rows" id="list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
-    </main>
+      <div class="head-stat">
+        <div class="v"><span id="rentalHeroMin">—</span><small>元/天</small></div>
+        <div class="k">当前租期最低日租</div>
+      </div>
+    </header>
 
-    <aside>
-      <div class="panel">
-        <h2>订阅 · 邮件提醒</h2>
-        <div class="watch-rule" id="watchRule">在左侧选好城市、路线、品牌后，点「一键订阅」——条件会存成仓库里的一个 Issue，监控每轮自动读取并推送，无需改 config.json。</div>
-        <div class="subform">
-          <input id="subEmail" type="email" placeholder="接收提醒的邮箱（可选）" autocomplete="email">
-          <button id="createSub">⚡ 一键订阅</button>
+    <section class="board" id="rentalBoard"></section>
+
+    <div class="rental-controls">
+      <div class="frow">
+        <div class="periods" id="periods">
+          <button class="period on" data-days="7"><b>周租</b><small>7 天 · — 起</small></button>
+          <button class="period" data-days="15"><b>半月租</b><small>15 天 · — 起</small></button>
+          <button class="period" data-days="30"><b>月租</b><small>30 天 · — 起</small></button>
         </div>
-        <div id="remoteSubs"></div>
-        <details style="margin-top:10px">
-          <summary style="color:var(--dim);font-size:11.5px;cursor:pointer">高级：手动改 config.json</summary>
-          <div class="watch-actions">
-            <button id="copyWatch">复制 watch_profiles</button>
-            <button id="copyWatchCmd">复制 watch 片段</button>
-          </div>
-          <div id="watchProfiles"></div>
-        </details>
-        <div class="hint">
-          一键订阅 = 在仓库创建一个 Issue：<b>开启即订阅、关闭即退订</b>，改条件直接编辑 Issue。
-          命中时监控会回执到 Issue（GitHub 自动发邮件给你）；仓库 Secrets 里若配了 SMTP，还会直发到上面的邮箱。
+        <div class="spacer"></div>
+        <div class="field"><label>城市</label><div class="cp" id="rentalCityPicker"></div></div>
+      </div>
+      <div class="frow">
+        <div class="field"><label>车型</label><input id="rq" placeholder="车系关键词，如 轩逸 / 朗逸" autocomplete="off"></div>
+        <div class="field"><label>排序</label>
+          <select id="rSort">
+            <option value="daily">日均最低</option>
+            <option value="total">总价最低</option>
+            <option value="save">折扣最大</option>
+          </select>
         </div>
+        <div class="spacer"></div>
+        <span class="lbl" id="rentalCount">—</span>
       </div>
+    </div>
 
-      <div class="panel">
-        <h2>预警监控</h2>
-        <div id="watchState"></div>
-        <div class="alog" id="alertLog"></div>
-        <div class="hint" id="alertHint"></div>
-      </div>
+    <div class="rwindow" id="rentalWindow"></div>
 
-      <div class="panel">
-        <h2>观测节奏</h2>
-        <div id="trend"></div>
-        <div class="hint">按「新车上架」的历史频率做泊松外推，不是官方排期；跑得越久越准。</div>
-      </div>
-    </aside>
-  </div>
+    <div class="rlayout">
+      <main>
+        <div class="rthead"><span>城市 / 取车点</span><span>车型</span><span>日均全包</span><span style="text-align:right">租金 + 服务费</span><span style="text-align:right">门市对比</span></div>
+        <div class="rrows" id="rentalList"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+      </main>
+      <aside>
+        <div class="panel">
+          <h3>最低全包日均 <span class="num" id="leadDays">7 天</span></h3>
+          <div class="rlead" id="leadDaily"></div>
+          <div class="rnote">按当前租期与城市样本排序，点击城市可切换查看。</div>
+        </div>
+        <div class="panel">
+          <h3>折扣最狠</h3>
+          <div class="rlead" id="leadSave"></div>
+          <div class="rnote">对比接口返回的门市日价；不含服务费、整备费。</div>
+        </div>
+        <div class="panel">
+          <h3>口径说明</h3>
+          <div class="rnote" id="rentalNote"></div>
+        </div>
+      </aside>
+    </div>
+  </section>
 
   <div class="foot" id="foot"></div>
 </div>
+
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="mailDrawer" aria-label="邮件提醒设置">
+  <header class="drawer-head">
+    <div>
+      <p class="eyebrow">MAIL ALERT</p>
+      <h2>邮件提醒</h2>
+      <p>把当前筛选条件变成一条订阅。命中时只给你发，不打扰别人。</p>
+    </div>
+    <button class="close" id="mailClose" aria-label="关闭">×</button>
+  </header>
+  <div class="drawer-body">
+    <div class="mail-rule" id="mailRule">先在左侧选城市、路线或品牌，这里会显示将要订阅的条件。</div>
+
+    <div class="step">
+      <span class="stepno">01</span>
+      <div class="step-body">
+        <h3>接收邮箱</h3>
+        <p>可留空：订阅会通过 GitHub Issue 回执提醒你。填写后会写入 Issue，公开仓库中可见。</p>
+        <input id="subEmail" type="email" placeholder="name@example.com（可选）" autocomplete="email">
+      </div>
+    </div>
+
+    <div class="step">
+      <span class="stepno">02</span>
+      <div class="step-body">
+        <h3>只在这些时刻提醒</h3>
+        <p>默认全选；取消你不想被通知的类型。</p>
+        <div class="checks">
+          <label class="check"><input type="checkbox" name="mailEvent" value="new" checked>新上线</label>
+          <label class="check"><input type="checkbox" name="mailEvent" value="relisted" checked>回到订单库</label>
+          <label class="check"><input type="checkbox" name="mailEvent" value="price_drop" checked>降价</label>
+          <label class="check"><input type="checkbox" name="mailEvent" value="locked" checked>被锁定</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="mail-status" id="mailStatus"></div>
+    <button class="primary" id="createSub">生成订阅 · 打开 GitHub</button>
+    <p class="privacy" id="mailPrivacy">静态看板没有服务器：订阅会存成仓库里的一个 Issue，<b>开启即订阅，关闭即退订</b>。GitHub 会在 Issue 下回执，你也能收到邮件。</p>
+
+    <div id="remoteSubs"></div>
+
+    <details>
+      <summary>已生效的订阅条件</summary>
+      <div id="watchProfiles"></div>
+    </details>
+
+    <details>
+      <summary>高级：手动配置 / 复制 JSON</summary>
+      <div class="hint">不想用 Issue 时，把下面 JSON 粘到 <code>config.json</code> 的 <code>watch_profiles</code>。</div>
+      <div class="mini-actions">
+        <button id="copyWatch">复制 watch_profiles</button>
+        <button id="copyWatchCmd">复制 watch 片段</button>
+      </div>
+    </details>
+
+    <details>
+      <summary>如何让邮箱直接收到信（仓库主）</summary>
+      <div class="hint">
+        在 GitHub 仓库 Settings → Secrets and variables → Actions 添加
+        <code>SZHITCH_SMTP_HOST</code>、<code>SZHITCH_SMTP_PORT</code>、<code>SZHITCH_SMTP_USER</code>、
+        <code>SZHITCH_SMTP_PASS</code>（授权码）、<code>SZHITCH_SMTP_TO</code>。
+        配好后，订阅里填的邮箱会按各自规则单独发送，不会互相串信。
+      </div>
+    </details>
+  </div>
+</aside>
+
 <div class="toast" id="toast"></div>
 
 <script>
-const $ = s => document.querySelector(s);
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const fmt = n => Number(n || 0).toLocaleString("zh-CN");
+const money = n => n === 0 ? "0" : fmt(n);
+const CN_OFFSET = "+08:00";
+
+function parseCN(value){
+  if(!value) return null;
+  const text = String(value).trim();
+  if(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(text)){
+    return new Date(text.replace(" ", "T") + ":00" + CN_OFFSET);
+  }
+  const d = new Date(text);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+function ageMinutes(value){
+  const d = parseCN(value);
+  if(!d) return null;
+  return Math.max(0, Math.round((Date.now() - d.getTime()) / 60000));
+}
+function ago(value){
+  const m = ageMinutes(value);
+  if(m === null) return "待同步";
+  if(m < 1) return "刚刚";
+  if(m < 60) return `${m} 分钟前`;
+  if(m < 1440) return `${Math.floor(m / 60)} 小时前`;
+  return `${Math.floor(m / 1440)} 天前`;
+}
+function ageTone(value){
+  const m = ageMinutes(value);
+  if(m === null) return "bad";
+  if(m <= 30) return "";
+  if(m <= 90) return "warn";
+  return "bad";
+}
 
 let DATA = null;
-const state = { q:"", from:"", to:"", brands:new Set(), maxp:0, status:"all", sort:"price", onlyWatch:false };
+let RENTAL = null;
+let loading = false;
+let nextRefresh = 60;
+let rentalPicker = null;
+let fromPicker = null;
+let toPicker = null;
+const RENTAL_CITY_MAP = new Map();
 
-/* 城市字典：[id, 名称, 拼音, 首字母, 省份, 字母, 取车条数, 还车条数] */
-let CITIES = [];
-const LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");
-
-function money(n){ return n === 0 ? "0" : fmt(n); }
+const state = {
+  mode: "hitch",
+  q: "", from: "", to: "", brands: new Set(), maxp: 0, status: "all", sort: "price", onlyWatch: false,
+  rental: { days: 7, city: "", q: "", sort: "daily" },
+};
 
 /* ------------------------------------------------------------------ 城市选择器 */
 function createCityPicker(rootSel, opts){
   const root = $(rootSel);
+  if(!root) return null;
   root.innerHTML = `
     <button class="cp-btn" type="button" aria-haspopup="listbox">
       <span class="cp-txt">${esc(opts.placeholder)}</span><span class="caret">▼</span>
     </button>
     <div class="cp-pop">
-      <input class="cp-search" type="text" autocomplete="off"
-             placeholder="${esc(opts.searchHint || "搜城市 / 拼音 / 首字母")}">
+      <input class="cp-search" type="text" autocomplete="off" placeholder="${esc(opts.searchHint || "搜城市 / 拼音 / 首字母")}">
       <div class="cp-hint">中文、全拼、首字母都能搜：成都 / chengdu / cd</div>
       <div class="cp-body">
         <div class="cp-list" role="listbox"></div>
@@ -458,48 +731,49 @@ function createCityPicker(rootSel, opts){
   const search = root.querySelector(".cp-search");
   const list = root.querySelector(".cp-list");
   const index = root.querySelector(".cp-index");
+  const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ#".split("");
   let current = "";
-
-  const countsOf = c => opts.countFor ? opts.countFor(c) : 0;
+  let rows = opts.data || [];
 
   function matches(c, q){
     if(!q) return true;
     const [, name, py, ini, prov] = c;
     const s = q.toLowerCase();
-    return name.includes(q) || name.toLowerCase().includes(s) ||
-           (py && py.includes(s)) || (ini && ini.startsWith(s)) || (prov && prov.includes(q));
+    return name.includes(q) || name.toLowerCase().includes(s) || (py && py.includes(s)) ||
+           (ini && ini.startsWith(s)) || (prov && prov.includes(q));
   }
-
+  function metaOf(c){
+    if(opts.meta) return opts.meta(c);
+    const n = opts.countFor ? opts.countFor(c) : 0;
+    return n ? `<b>${n}</b>` : "—";
+  }
   function render(query){
     const q = (query || "").trim();
-    let rows = CITIES.filter(c => matches(c, q));
-    if(!rows.length){
+    const found = rows.filter(c => matches(c, q));
+    if(!found.length){
       list.innerHTML = `<div class="cp-empty">没有匹配的城市</div>`;
       return;
     }
     let html = `<div class="cp-item ${current === "" ? "sel" : ""}" data-v="">
-        <span>全部城市</span><span class="meta">${CITIES.length}</span></div>`;
+      <span>全部城市</span><span class="meta">${rows.length}</span></div>`;
     let lastLetter = "";
-    for(const c of rows){
+    for(const c of found){
       if(c[5] !== lastLetter){
         lastLetter = c[5];
         html += `<div class="cp-group">${esc(lastLetter)}</div>`;
       }
-      const n = countsOf(c);
-      html += `<div class="cp-item ${current === c[1] ? "sel" : ""} ${n ? "" : "zero"}" data-v="${esc(c[1])}">
-        <span>${esc(c[1])}<span style="color:var(--dim);font-size:10.5px;margin-left:6px;font-family:var(--mono)">${esc(c[3] || "")}</span></span>
-        <span class="meta">${n ? `<b>${n}</b>` : "—"}</span>
+      html += `<div class="cp-item ${current === c[1] ? "sel" : ""}" data-v="${esc(c[1])}">
+        <span>${esc(c[1])}<span style="color:var(--dim);font-size:10px;margin-left:6px;font-family:var(--mono)">${esc(c[3] || "")}</span></span>
+        <span class="meta">${metaOf(c)}</span>
       </div>`;
     }
     list.innerHTML = html;
   }
-
   function renderIndex(){
-    const present = new Set(CITIES.map(c => c[5]));
-    index.innerHTML = LETTERS.filter(l => present.has(l)).map(l =>
+    const present = new Set(rows.map(c => c[5]));
+    index.innerHTML = letters.filter(l => present.has(l)).map(l =>
       `<div class="cp-idx" data-l="${l}">${l}</div>`).join("");
   }
-
   function open(){
     renderIndex();
     render(search.value);
@@ -507,10 +781,10 @@ function createCityPicker(rootSel, opts){
     search.focus();
   }
   function close(){ pop.classList.remove("open"); }
-
   function set(value, silent){
     current = value || "";
-    btn.querySelector(".cp-txt").textContent = current || opts.placeholder;
+    const txt = btn.querySelector(".cp-txt");
+    if(txt) txt.textContent = current || opts.placeholder;
     btn.classList.toggle("on", !!current);
     if(!silent) opts.onChange(current);
   }
@@ -531,112 +805,145 @@ function createCityPicker(rootSel, opts){
     const idx = e.target.closest(".cp-idx");
     if(!idx) return;
     search.value = "";
-    const rows = CITIES.filter(c => c[5] === idx.dataset.l);
-    if(!rows.length) return;
+    const target = rows.find(c => c[5] === idx.dataset.l);
+    if(!target) return;
     render("");
-    [...index.children].forEach(x => x.classList.toggle("on", x === idx));
-    const first = [...list.querySelectorAll(".cp-item")].find(el => el.dataset.v === rows[0][1]);
+    $$(".cp-idx", index).forEach(x => x.classList.toggle("on", x === idx));
+    const first = $$(".cp-item", list).find(el => el.dataset.v === target[1]);
     if(first) first.scrollIntoView({block:"start"});
   });
   document.addEventListener("click", close);
 
-  return { set, get value(){ return current; } };
+  return {
+    set,
+    setData(next){
+      rows = next || [];
+      if(pop.classList.contains("open")) render(search.value);
+    },
+    get value(){ return current; },
+  };
 }
 
-let fromPicker, toPicker;
+/* ------------------------------------------------------------------ 数据加载 */
+async function fetchJSON(name){
+  const r = await fetch(name + "?_=" + Date.now(), {cache: "no-store"});
+  if(!r.ok) throw new Error(`HTTP ${r.status}`);
+  return r.json();
+}
 
-/* ------------------------------------------------------------------ 加载 */
-async function load(){
-  $("#genAt").textContent = "加载中";
-  $("#banner").innerHTML = "";
-  try{
-    const r = await fetch("dashboard.json?_=" + Date.now(), {cache:"no-store"});
-    if(!r.ok) throw new Error("HTTP " + r.status);
-    DATA = await r.json();
-  }catch(e){
-    $("#genAt").textContent = "数据未就绪";
-    $("#liveN").textContent = "—";
-    $("#board").innerHTML = "";
-    $("#banner").innerHTML = `<div class="err">
-      读不到 <code>dashboard.json</code>：${esc(e.message)}<br>
-      先运行 <code>python main.py once --export dashboard/dashboard.json</code>，
-      或直接 <code>python main.py serve --refresh</code>（会自动抓一轮并起本地预览）。<br>
-      注意：直接用浏览器打开本文件（file://）会被 CORS 拦截，请用上面的本地服务。
-    </div>`;
-    $("#list").innerHTML = "";
+function setSync(loadingNow){
+  const el = $("#syncState");
+  const text = $("#syncText");
+  if(!el || !text) return;
+  if(loadingNow){
+    el.className = "sync";
+    text.innerHTML = `<span class="long">同步中</span>`;
     return;
   }
-  CITIES = DATA.city_dict || [];
-  buildPickers();
-  renderAll();
-  applyHash();
+  const age = DATA ? ageMinutes(DATA.generated_at) : null;
+  const tone = ageTone(DATA && DATA.generated_at);
+  el.className = "sync " + tone;
+  if(age === null){
+    text.innerHTML = `等待数据`;
+  }else{
+    text.innerHTML = `<span class="long">顺风车 </span><b>${ago(DATA.generated_at)}</b><span class="long"> · ${nextRefresh}s</span>`;
+  }
 }
 
-function countsFor(kind){
-  return c => kind === "from" ? c[6] : c[7];
+async function loadAll(manual = false){
+  if(loading) return;
+  loading = true;
+  setSync(true);
+  const btn = $("#reload");
+  if(btn) btn.disabled = true;
+  const results = await Promise.allSettled([fetchJSON("dashboard.json"), fetchJSON("rental.json")]);
+  const dataResult = results[0];
+  const rentalResult = results[1];
+
+  if(dataResult.status === "fulfilled"){
+    const old = DATA && DATA.generated_at;
+    DATA = dataResult.value;
+    renderAll();
+    if(!old || old !== DATA.generated_at || manual) applyHash();
+  }else if(!DATA){
+    $("#banner").innerHTML = `<div class="err">
+      读不到 <code>dashboard.json</code>：${esc(dataResult.reason?.message || "未知错误")}<br>
+      面板是静态页，需要监控先导出一轮数据：<code>python main.py once --export dashboard/dashboard.json</code>。
+    </div>`;
+    $("#list").innerHTML = "";
+  }
+
+  if(rentalResult.status === "fulfilled" && rentalResult.value && Array.isArray(rentalResult.value.deals)){
+    RENTAL = rentalResult.value;
+    renderRentalAll();
+  }else if(manual && !RENTAL){
+    toast("长租行情还没生成");
+  }
+
+  loading = false;
+  nextRefresh = 60;
+  setSync(false);
+  if(btn) btn.disabled = false;
+  if(manual) toast("已重新读取最新数据");
 }
 
+/* ------------------------------------------------------------------ 顺风车 */
 function buildPickers(){
-  if(fromPicker){ fromPicker.set(state.from, true); toPicker.set(state.to, true); return; }
+  if(!DATA) return;
+  const rows = DATA.city_dict || [];
+  if(fromPicker){
+    fromPicker.setData(rows);
+    toPicker.setData(rows);
+    fromPicker.set(state.from, true);
+    toPicker.set(state.to, true);
+    return;
+  }
   fromPicker = createCityPicker("#fromPicker", {
-    placeholder:"全部城市", countFor: countsFor("from"),
-    onChange: v => { state.from = v; syncHash(); renderList(); renderRouteBar(); renderWatchPanel(); },
+    placeholder: "全部城市", data: rows,
+    countFor: c => c[6] || 0,
+    onChange: v => { state.from = v; syncHash(); renderList(); renderRouteBar(); renderWatchPanels(); },
   });
   toPicker = createCityPicker("#toPicker", {
-    placeholder:"全部城市", countFor: countsFor("to"),
-    onChange: v => { state.to = v; syncHash(); renderList(); renderRouteBar(); renderWatchPanel(); },
+    placeholder: "全部城市", data: rows,
+    countFor: c => c[7] || 0,
+    onChange: v => { state.to = v; syncHash(); renderList(); renderRouteBar(); renderWatchPanels(); },
   });
 }
 
-function renderAll(){
-  const t = DATA.totals || {};
-  const fc = DATA.forecast || {};
-  const gen = DATA.generated_at || "-";
-  $("#genAt").textContent = gen;
-  $("#liveN").textContent = fmt(t.live);
-
+function renderBoard(){
+  const t = DATA?.totals || {};
+  const gen = DATA?.generated_at || "-";
+  $("#heroMin").textContent = t.min_per_day || t.min_price || "—";
   $("#board").innerHTML = [
-    ["在售", fmt(t.live), "条", "accent", `锁定 ${fmt(t.locked)}`],
-    ["关注命中", fmt(t.hit || 0), "条", "jade", "按订阅条件"],
-    ["城市覆盖", fmt(t.cities), "城", "", `字典 ${fmt(t.city_dict || CITIES.length)}`],
-    ["品牌", fmt(t.brands || 0), "个", "", `${fmt(t.models || 0)} 款车型`],
-    ["最低价", money(t.min_price), "元", "amber", `均价 ${t.avg_price || "-"}`],
+    ["在售", fmt(t.live), "条", "", `锁定 ${fmt(t.locked)} · 城市 ${fmt(t.cities)}`],
+    ["最低日均", money(t.min_per_day), "元/天", "amber", `最低总价 ${money(t.min_price)} 元`],
+    ["关注命中", fmt(t.hit || 0), "条", "jade", "按当前订阅条件"],
+    ["覆盖城市", fmt(t.cities), "城", "", `字典 ${fmt(t.city_dict || 0)} 城`],
+    ["品牌 / 车型", `${fmt(t.brands || 0)} / ${fmt(t.models || 0)}`, "", "", `均价 ${t.avg_per_day || "—"} 元/天`],
   ].map(([k, v, u, cls, sub]) => `
-    <div class="fig ${cls}">
+    <div class="fig">
       <div class="k">${k}</div>
-      <div class="v">${v}<small>${u}</small></div>
-      <div class="k" style="margin-top:7px;text-transform:none;letter-spacing:.02em">${esc(sub)}</div>
+      <div class="v ${cls}">${v}<small>${u}</small></div>
+      <div class="s">${esc(sub)}</div>
     </div>`).join("");
-
-  $("#tagline").textContent = `把需要调回外地的车，用补贴价开走`;
-  $("#obsN").textContent = fc.observed_days ?? 0;
-  $("#foot").textContent = `数据源 神州租车顺风车列表接口 · 生成于 ${gen} · 仅供个人比价，库存与价格以 App 内为准`;
-
-  renderBrandChips();
-  renderRouteBar();
-  renderWatchPanel();
-  renderWatchState();
-  renderAlertLog();
-  renderList();
-  renderTrend();
-  loadRemoteSubs();
+  $("#genAt") && ($("#genAt").textContent = gen);
 }
 
 function renderBrandChips(){
-  const brands = DATA.brands || [];
+  const brands = DATA?.brands || [];
   $("#brandChips").innerHTML = brands.map(b => `
     <button class="chip ${state.brands.has(b.name) ? "on" : ""}" data-b="${esc(b.name)}">
-      ${esc(b.name)}<span class="n">${b.count}</span></button>`).join("")
-    || `<span class="chip-lbl">数据里还没有品牌信息</span>`;
+      ${esc(b.name)}<span class="n">${b.count}</span></button>`).join("") ||
+    `<span class="lbl">数据里还没有品牌信息</span>`;
 }
 
 function renderRouteBar(){
   const bar = $("#routeBar");
-  const routes = DATA.routes || [];
+  const routes = DATA?.routes || [];
   if(state.from || state.to){
-    const n = (DATA.listings || []).filter(it =>
+    const n = (DATA?.listings || []).filter(it =>
       (!state.from || it.from === state.from) && (!state.to || it.to === state.to)).length;
-    bar.innerHTML = `<span class="chip-lbl">路线</span>
+    bar.innerHTML = `<span class="lbl">路线</span>
       <span class="rchip" style="border-color:var(--amber-line);color:var(--amber)">
         ${esc(state.from || "全国")} <span style="color:var(--dim)">→</span> ${esc(state.to || "全国")}<b>${n}</b>
       </span>
@@ -645,26 +952,26 @@ function renderRouteBar(){
     if(btn) btn.onclick = () => {
       state.from = ""; state.to = "";
       fromPicker.set("", true); toPicker.set("", true);
-      syncHash(); renderList(); renderRouteBar();
+      syncHash(); renderList(); renderRouteBar(); renderWatchPanels();
     };
   }else{
-    bar.innerHTML = `<span class="chip-lbl">热门路线</span>` + routes.slice(0, 4).map(r => `
+    bar.innerHTML = `<span class="lbl">热门</span>` + routes.slice(0, 4).map(r => `
       <span class="rchip" data-f="${esc(r.from)}" data-t="${esc(r.to)}">
         ${esc(r.from)}→${esc(r.to)}<b>${r.count}</b></span>`).join("");
-    bar.querySelectorAll(".rchip").forEach(el => {
+    $$(".rchip", bar).forEach(el => {
       el.onclick = () => {
         state.from = el.dataset.f; state.to = el.dataset.t;
         fromPicker.set(state.from, true); toPicker.set(state.to, true);
-        syncHash(); renderList(); renderRouteBar();
+        syncHash(); renderList(); renderRouteBar(); renderWatchPanels();
       };
     });
   }
 }
 
-function filtered(){
+function hitchFiltered(){
   const q = state.q.trim().toLowerCase();
   const brands = state.brands;
-  let arr = (DATA.listings || []).filter(it => {
+  let arr = (DATA?.listings || []).filter(it => {
     if(state.status !== "all" && it.status !== state.status) return false;
     if(state.from && it.from !== state.from) return false;
     if(state.to && it.to !== state.to) return false;
@@ -672,59 +979,46 @@ function filtered(){
     if(state.maxp && Number(it.price) > state.maxp) return false;
     if(state.onlyWatch && !it.hit) return false;
     if(q){
-      const hay = (it.model + " " + (it.brand||"") + " " + (it.series||"") + " " + (it.desc||"") + " " + it.from + " " + it.to).toLowerCase();
+      const hay = `${it.model || ""} ${it.brand || ""} ${it.series || ""} ${it.desc || ""} ${it.from || ""} ${it.to || ""}`.toLowerCase();
       if(!hay.includes(q)) return false;
     }
     return true;
   });
   const by = {
-    price: (a,b) => a.price - b.price,
-    discount: (a,b) => (b.orig / (b.price||1)) - (a.orig / (a.price||1)),
+    price: (a,b) => (a.price || 0) - (b.price || 0),
+    perday: (a,b) => ((a.price || 0) / (a.days || 1)) - ((b.price || 0) / (b.days || 1)),
+    discount: (a,b) => (b.orig / (b.price || 1)) - (a.orig / (a.price || 1)),
     date: (a,b) => (a.begin || "9999").localeCompare(b.begin || "9999"),
-    days: (a,b) => (b.days||0) - (a.days||0),
-  }[state.sort];
+    days: (a,b) => (b.days || 0) - (a.days || 0),
+  }[state.sort] || ((a,b) => (a.price || 0) - (b.price || 0));
   return arr.sort(by);
 }
 
 function renderList(){
-  const arr = filtered();
-  $("#count").textContent = `${fmt(arr.length)} / ${fmt((DATA.listings||[]).length)} 条`;
+  if(!DATA) return;
+  const arr = hitchFiltered();
+  $("#count").textContent = `${fmt(arr.length)} / ${fmt((DATA.listings || []).length)} 条`;
+  $("#heroMin").textContent = DATA.totals?.min_per_day ?? "—";
   if(!arr.length){
     $("#list").innerHTML = `<div class="empty">没有符合条件的顺风车 —— 放宽价格或清空品牌筛选试试。</div>`;
     return;
   }
   const LIMIT = 500;
-  const frag = arr.slice(0, LIMIT).map((it, i) => {
+  $("#list").innerHTML = arr.slice(0, LIMIT).map((it, i) => {
     const locked = it.status === "locked";
-    const dates = it.begin ? `${esc(it.begin.slice(5))} → ${esc((it.end||"").slice(5))}` : "日期待定";
+    const dates = it.begin ? `${esc(it.begin.slice(5))} → ${esc((it.end || "").slice(5))}` : "日期待定";
     const days = it.days ? `${it.days} 天` : (it.desc ? esc(it.desc) : "");
     const dept = it.deptFrom || it.deptTo ? `${it.deptFrom || it.from} → ${it.deptTo || it.to}` : "";
-    // 副标题优先给门店；没有门店时只在原始车型名带年份/配置后缀（与归一化结果不同）时补品牌
     const norm = `${it.brand || ""}${it.series || ""}`;
-    const note = dept || ((it.brand && norm && !it.model.replace(/\s/g, "").includes(norm)) ? norm : "");
-    return `<article class="row ${it.hit ? "hit" : ""} ${locked ? "locked" : ""}"
-        style="animation-delay:${Math.min(i, 12) * 14}ms" title="${esc(it.model)} · ${esc(dept || norm)}">
-      <div class="route">
-        <span class="city">${esc(it.from)}</span>
-        <span class="track" aria-hidden="true"></span>
-        <span class="city">${esc(it.to)}</span>
-      </div>
-      <div class="model">
-        <span class="m">${esc(it.model)}</span>
-        <span class="b">${esc(note)}${locked ? (note ? " · " : "") + "已被锁定" : ""}</span>
-      </div>
-      <div class="when">
-        <span class="d">${dates}</span>
-        <span class="t">${days}</span>
-      </div>
-      <div class="price">
-        <b>${money(it.price)}</b><span class="u">元</span>
-        ${it.orig && it.orig > it.price ? `<s>${fmt(it.orig)}</s>` : ""}
-      </div>
+    const note = dept || ((it.brand && norm && !String(it.model || "").replace(/\s/g, "").includes(norm)) ? norm : "");
+    const perday = it.days ? Math.round(it.price / it.days) : null;
+    return `<article class="hrow ${it.hit ? "hit" : ""} ${locked ? "locked" : ""}" style="animation-delay:${Math.min(i, 12) * 13}ms" title="${esc(it.model)} · ${esc(note)}">
+      <div class="route"><span class="city">${esc(it.from)}</span><span class="track" aria-hidden="true"></span><span class="city">${esc(it.to)}</span></div>
+      <div class="model"><span class="m">${esc(it.model)}</span><span class="b">${esc(note)}${locked ? (note ? " · " : "") + "已被锁定" : ""}</span></div>
+      <div class="when"><span class="d">${dates}</span><span class="t">${days}</span></div>
+      <div class="price"><div class="main"><b>${money(it.price)}</b><span class="u">元</span>${it.orig && it.orig > it.price ? `<s>${fmt(it.orig)}</s>` : ""}</div><span class="pd">${perday ? `≈ ${perday} 元/天` : ""}</span></div>
     </article>`;
-  }).join("");
-  $("#list").innerHTML = frag + (arr.length > LIMIT
-    ? `<div class="empty">仅显示前 ${LIMIT} 条，请用筛选缩小范围</div>` : "");
+  }).join("") + (arr.length > LIMIT ? `<div class="empty">仅显示前 ${LIMIT} 条，请用筛选缩小范围</div>` : "");
 }
 
 /* ------------------------------------------------------------------ 关注 / 订阅 */
@@ -738,7 +1032,6 @@ function watchRules(){
   if(state.q.trim()) r.models = [state.q.trim()];
   return r;
 }
-
 function describeRules(r){
   if(!Object.keys(r).length) return "";
   const bits = [];
@@ -749,80 +1042,306 @@ function describeRules(r){
   }
   if(r.brands) bits.push(`品牌 <b>${esc(r.brands.join("、"))}</b>`);
   if(r.models) bits.push(`车型含 <b>${esc(r.models.join("、"))}</b>`);
-  if(r.max_price) bits.push(`价格 ≤ <b>${r.max_price}</b> 元`);
+  if(r.max_price) bits.push(`总价 ≤ <b>${r.max_price}</b> 元`);
   return bits.join(" · ");
 }
-
-function renderWatchPanel(){
-  const r = watchRules();
-  const desc = describeRules(r);
-  $("#watchRule").innerHTML = desc
-    ? `将订阅：<br>${desc}<div style="color:var(--dim);margin-top:7px">当前命中 ${fmt(filtered().length)} 条</div>`
-    : `在左侧选好城市、路线、品牌后，点「一键订阅」——条件会存成仓库里的一个 Issue，监控每轮自动读取并推送，无需改 config.json。`;
-
-  const repo = DATA.repo || "";
-  const btn = $("#createSub");
-  const ready = !!Object.keys(r).length && !!repo;
-  btn.disabled = !ready;
-  btn.textContent = repo ? "⚡ 一键订阅" : "⚡ 一键订阅（需配置 subscribe.repo）";
-
-  const w = DATA.watch || {};
-  const box = $("#watchProfiles");
-  if(!w.active || !(w.profiles || []).length){
-    box.innerHTML = `<div class="hint">config.json 里还没有本地订阅分组。</div>`;
-  }else{
-    box.innerHTML = `<div class="hint" style="margin-top:12px">config.json 里的订阅</div>` +
-      w.profiles.map(p => `<div class="prof"><b>${esc(p.name)}</b><span>${esc(p.desc.replace(/^「[^」]*」 · /, ""))}</span></div>`).join("");
+function renderWatchPanels(){
+  if(!DATA) return;
+  const rules = watchRules();
+  const desc = describeRules(rules);
+  const n = hitchFiltered().length;
+  $("#watchCount").textContent = fmt(n);
+  $("#watchState").innerHTML = `<div class="r"><span>当前筛选命中</span><b>${fmt(n)}<small>条</small></b></div>
+    <div class="r"><span>已保存订阅</span><b>${DATA.watch?.active ? (DATA.watch.profiles || []).length : 0}<small>组</small></b></div>`;
+  const mail = DATA.mail || {};
+  const repoReady = !!(mail.repoReady || DATA.repo);
+  $("#mailCtaTitle").textContent = desc ? "条件已选好，开启提醒" : "选好条件，命中就发信";
+  $("#mailCtaDesc").innerHTML = desc
+    ? `${desc}<br><span style="color:var(--dim)">当前命中 ${fmt(n)} 条</span>`
+    : "城市、路线、品牌、价格都可以组合；开启后每轮监控自动检查。";
+  $("#mailCta").classList.toggle("off", !desc);
+  $("#mailCta").textContent = desc ? "设置邮件提醒 →" : "先选条件，再开启 →";
+  const create = $("#createSub");
+  if(create){
+    create.disabled = !Object.keys(rules).length || !repoReady;
+    create.textContent = !Object.keys(rules).length ? "先选条件" : (!repoReady ? "缺少仓库配置" : "生成订阅 · 打开 GitHub");
   }
+  const badge = $(".mail-open .badge");
+  if(badge) badge.style.background = mail.smtpReady ? "var(--jade)" : "var(--dim)";
+  $("#mailStatus").innerHTML = `
+    <div class="r"><span class="dot ${repoReady ? "on" : "warn"}"></span><span>订阅仓库：<b>${repoReady ? "已连接" : "未配置 repo"}</b></span></div>
+    <div class="r"><span class="dot ${mail.smtpReady ? "on" : "warn"}"></span><span>SMTP 直发：<b>${mail.smtpReady ? "已就绪" : "未配置"}</b>${mail.smtpReady ? "，命中会发到订阅邮箱" : "，仍可走 GitHub 回执邮件"}</span></div>
+    <div class="r"><span class="dot ${mail.commentAlerts ? "on" : ""}"></span><span>Issue 回执：<b>${mail.commentAlerts ? "开启" : "关闭"}</b></span></div>`;
+  const profiles = DATA.watch?.profiles || [];
+  $("#watchProfiles").innerHTML = profiles.length
+    ? profiles.map(p => `<div class="prof"><b>${esc(p.name)}</b><span>${esc(String(p.desc || "").replace(/^「[^」]*」 · /, ""))}</span></div>`).join("")
+    : `<div class="hint">config.json 里还没有本地订阅分组。</div>`;
+}
+function renderAlertLog(){
+  const a = DATA?.alerts || {};
+  const rows = a.recent || [];
+  const box = $("#alertLog");
+  if(!rows.length){
+    box.innerHTML = `<div class="hint" style="margin-top:7px">还没有预警记录。配置订阅并跑一轮监控后，每一次「新上线 / 回库 / 降价 / 锁定」都会记录在这里。</div>`;
+    $("#alertHint").textContent = "";
+    return;
+  }
+  box.innerHTML = rows.map(r => {
+    const tm = (r.ts || "").replace("T", " ").slice(5, 16);
+    const price = r.price ? `<span class="pr">${fmt(r.price)}<s>元</s></span>` : "";
+    const route = (r.from || r.to) ? `${esc(r.from)} → ${esc(r.to)}` : "—";
+    return `<div class="it"><span class="ic">${esc(r.icon || "•")}</span><span class="bd">
+      <span class="rt">${esc(r.label || r.kind)}${r.profile ? `<span class="pf">${esc(r.profile)}</span>` : ""}</span>
+      <span class="md">${route} · ${esc(r.model || "")}${price}</span></span>
+      <span class="tm">${esc(tm)}</span></div>`;
+  }).join("");
+  const names = {new:"上新", relisted:"回库", price_drop:"降价", locked:"锁定", closed:"关闭", expired:"过期"};
+  const bits = Object.entries(a.kinds || {}).map(([k, v]) => `${esc(names[k] || k)} ${v}`);
+  $("#alertHint").textContent = `最近 30 天 ${rows.length} 条` + (bits.length ? " · " + bits.join(" / ") : "");
+}
+function renderTrend(){
+  const fc = DATA?.forecast || {};
+  const daily = fc.daily || {};
+  const counts = daily.counts || [];
+  const dates = daily.dates || [];
+  if(!counts.length){
+    $("#trend").innerHTML = `<div class="hint">${esc(fc.reason || "还没有足够的到达记录")}</div>`;
+    return;
+  }
+  const max = Math.max(...counts, 1);
+  const bars = counts.slice(-10).map((n, i) => {
+    const d = dates[dates.length - Math.min(10, counts.length) + i] || "";
+    return `<div class="bar"><b>${n}</b><i style="height:${Math.max(4, Math.round(n / max * 100))}%"></i><span>${esc(d.slice(5) || "")}</span></div>`;
+  }).join("");
+  $("#trend").innerHTML = `<div class="kv"><div class="r"><span>观测天数</span><b>${fc.observed_days ?? 0}<small>天</small></b></div>
+    <div class="r"><span>累计到达</span><b>${fmt(fc.total_arrivals || 0)}<small>条</small></b></div></div><div class="bars">${bars}</div>`;
 }
 
-/* ------------------------------------------------------------------ 一键订阅（GitHub Issue） */
+/* ------------------------------------------------------------------ 长租 */
+function rentalCityRows(){
+  const allowed = new Set((RENTAL?.cities || []).filter(c => c.minDaily).map(c => c.name));
+  return (DATA?.city_dict || []).filter(c => allowed.has(c[1]));
+}
+function rentalCityMeta(c){
+  const row = RENTAL_CITY_MAP.get(c[1]);
+  return row && row.minDaily ? `<b>¥${row.minDaily}</b>` : "—";
+}
+function buildRentalPicker(){
+  if(!RENTAL) return;
+  RENTAL_CITY_MAP.clear();
+  (RENTAL.cities || []).forEach(c => RENTAL_CITY_MAP.set(c.name, c));
+  const rows = rentalCityRows();
+  if(rentalPicker){
+    rentalPicker.setData(rows);
+    rentalPicker.set(state.rental.city, true);
+    return;
+  }
+  rentalPicker = createCityPicker("#rentalCityPicker", {
+    placeholder: "全部城市", data: rows, meta: rentalCityMeta,
+    onChange: v => { state.rental.city = v; syncHash(); renderRentalList(); renderRentalLeaders(); },
+  });
+  rentalPicker.set(state.rental.city, true);
+}
+function rentalFiltered(){
+  if(!RENTAL) return [];
+  const q = state.rental.q.trim().toLowerCase();
+  let arr = (RENTAL.deals || []).filter(it => {
+    if(it.days !== Number(state.rental.days)) return false;
+    if(state.rental.city && it.city !== state.rental.city) return false;
+    if(q){
+      const hay = `${it.model || ""} ${it.brand || ""} ${it.series || ""} ${it.desc || ""} ${it.city || ""}`.toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const by = {
+    daily: (a,b) => (a.daily || 0) - (b.daily || 0),
+    total: (a,b) => (a.total || 0) - (b.total || 0),
+    save: (a,b) => (b.save || 0) - (a.save || 0),
+  }[state.rental.sort] || ((a,b) => a.daily - b.daily);
+  return arr.sort(by);
+}
+function periodMeta(){
+  return ((RENTAL && RENTAL.periods) || {})[String(state.rental.days)] || {};
+}
+function shortRange(meta){
+  const from = String(meta.pickupAt || RENTAL?.pickup_at || "").slice(5, 16);
+  const to = String(meta.returnAt || "").slice(5, 16);
+  return from && to ? `${from} → ${to}` : "";
+}
+function renderRentalBoard(){
+  if(!RENTAL) return;
+  const s = RENTAL.summary || {};
+  const p = periodMeta();
+  $("#rentalHeroMin").textContent = p.minDaily || s.minDaily || "—";
+  $("#rentalBoard").innerHTML = [
+    ["覆盖城市", fmt(s.cities), "城", "", `样本 ${fmt(s.requested)} 城`],
+    ["当前最低", money(p.minDaily), "元/天", "amber", `租金 ${money(p.minRentDaily)} + 服务费 ${money(p.minServiceDaily)}`],
+    ["租期总价", money(p.minTotal), "元", "jade", `${p.days || state.rental.days} 天 · 含出行服务费`],
+    ["好价数量", fmt(p.good || 0), "条", "", `狠价 ${fmt(p.great || 0)} 条 · 车型 ${fmt(s.models)} 款`],
+  ].map(([k, v, u, cls, sub]) => `
+    <div class="fig"><div class="k">${k}</div><div class="v ${cls}">${v}<small>${u}</small></div><div class="s">${esc(sub)}</div></div>`).join("");
+  const [from, to] = shortRange(p).split(" → ");
+  $("#rentalWindow").innerHTML = `<span>统一租期</span>
+    <b>${esc(from || "—")}</b><span class="arrow">→</span>
+    <b>${esc(to || "—")}</b>
+    <span>共 <b>${p.days || state.rental.days}</b> 天</span>
+    <span class="tagline">取还车均为当地时间 · 租金 + 出行服务费</span>`;
+}
+function renderPeriods(){
+  if(!RENTAL) return;
+  const s = RENTAL.summary || {};
+  $$("#periods .period").forEach(btn => {
+    const days = Number(btn.dataset.days);
+    const info = (s.periods || {})[String(days)] || {};
+    btn.classList.toggle("on", days === Number(state.rental.days));
+    const small = btn.querySelector("small");
+    if(small) small.textContent = `${days} 天 · ${info.minDaily ? "¥" + info.minDaily + " 起" : "暂无"}`;
+  });
+  $("#leadDays").textContent = `${state.rental.days} 天`;
+}
+function renderRentalList(){
+  if(!RENTAL){
+    $("#rentalList").innerHTML = `<div class="empty">长租行情还没生成。<br>运行 <code>python main.py rentals --export dashboard/rental.json</code> 后刷新。</div>`;
+    return;
+  }
+  const arr = rentalFiltered();
+  $("#rentalCount").textContent = `${fmt(arr.length)} / ${fmt((RENTAL.deals || []).length)} 条`;
+  if(!arr.length){
+    $("#rentalList").innerHTML = `<div class="empty">这个城市 / 租期还没有报价 —— 换一个城市或租期试试。</div>`;
+    return;
+  }
+  const LIMIT = 320;
+  const meta = periodMeta();
+  const range = shortRange(meta);
+  $("#rentalList").innerHTML = arr.slice(0, LIMIT).map((it, i) => {
+    const tierLabel = it.tier === "great" ? "狠价" : it.tier === "good" ? "好价" : it.tier === "fair" ? "可看" : "常规";
+    const dept = it.dept || "全市门店";
+    const distance = it.distance ? ` · ${it.distance}` : "";
+    return `<article class="deal ${esc(it.tier || "")}" style="animation-delay:${Math.min(i, 12) * 12}ms">
+      <div class="deal-city">
+        ${it.pic ? `<img class="deal-pic" src="${esc(it.pic)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ""}
+        <div class="txt"><b>${esc(it.city)}</b><span>${esc(dept)}${esc(distance)}</span><span class="range">${range ? "租期 " + esc(range) : ""}</span></div>
+      </div>
+      <div class="deal-model"><b>${esc(it.model)}</b><span>${esc(it.desc || "")}${it.brand ? " · " + esc(it.brand) : ""}</span></div>
+      <div class="deal-day"><b>${money(it.daily)}</b><span>元/天全包</span></div>
+      <div class="deal-total"><b>¥${money(it.total)}</b><span>租金 ¥${money(it.rentTotal)} + 服务费 ¥${money(it.serviceTotal)}</span></div>
+      <div class="deal-save"><span class="tag ${esc(it.tier || "")}">${tierLabel} · 省 ${fmt(it.save)}%</span><s>门市租金 ${money(it.standardDaily)}/天</s></div>
+    </article>`;
+  }).join("") + (arr.length > LIMIT ? `<div class="empty">仅显示前 ${LIMIT} 条，请用城市或车型缩小范围</div>` : "");
+}
+function renderRentalLeaders(){
+  if(!RENTAL) return;
+  const info = (RENTAL.leaders || {})[String(state.rental.days)] || {};
+  const renderRows = (rows, showSave) => (rows || []).slice(0, 8).map((r, i) => `
+    <div class="lrow" data-city="${esc(r.city)}" title="查看 ${esc(r.city)} 的全部报价">
+      <span class="lrank">${String(i + 1).padStart(2, "0")}</span>
+      <span class="lcity">${esc(r.city)}</span>
+      <span class="lmodel">${esc(r.model)}</span>
+      ${showSave ? `<span class="lsave">-${fmt(r.save)}%</span>` : ""}
+      <span class="lprice">¥${money(r.daily)}<small>/天</small></span>
+    </div>`).join("") || `<div class="hint">暂无数据</div>`;
+  $("#leadDaily").innerHTML = renderRows(info.daily, false);
+  $("#leadSave").innerHTML = renderRows(info.save, true);
+  $$("#leadDaily .lrow, #leadSave .lrow").forEach(el => {
+    el.onclick = () => {
+      state.rental.city = el.dataset.city;
+      if(rentalPicker) rentalPicker.set(state.rental.city, true);
+      syncHash(); renderRentalList();
+    };
+  });
+  $("#rentalNote").innerHTML = `取车 <b>${esc(RENTAL.pickup_at || "—")}</b>，三档租期统一口径。<br>
+    ${esc(RENTAL.note || "总价 = 车辆租金 + 出行服务费")}。<br>
+    服务费为估算值：已含基础服务与车辆整备，不含异地还车、上门取送。数据 ${esc(ago(RENTAL.generated_at))}更新。`;
+}
+function renderRentalAll(){
+  if(!RENTAL) return;
+  buildRentalPicker();
+  renderRentalBoard();
+  renderPeriods();
+  renderRentalList();
+  renderRentalLeaders();
+  renderFoot();
+}
+
+/* ------------------------------------------------------------------ 渲染总入口 */
+function renderFoot(){
+  if(!DATA) return;
+  $("#foot").textContent = `数据源 神州租车移动端公开接口 · 顺风车 ${ago(DATA.generated_at)}更新（15 分钟同步） · 长租 ${RENTAL ? ago(RENTAL.generated_at) + "更新（6 小时同步）" : "行情待生成"} · 租金与服务费均以 App 下单页为准`;
+}
+function renderAll(){
+  if(!DATA) return;
+  buildPickers();
+  renderBoard();
+  renderBrandChips();
+  renderRouteBar();
+  renderList();
+  renderWatchPanels();
+  renderAlertLog();
+  renderTrend();
+  if(RENTAL) renderRentalAll();
+  renderFoot();
+}
+
+/* ------------------------------------------------------------------ 邮件面板 */
+function openMail(){
+  $("#scrim").classList.add("show");
+  $("#mailDrawer").classList.add("show");
+  document.body.style.overflow = "hidden";
+  const rules = watchRules();
+  $("#mailRule").innerHTML = Object.keys(rules).length
+    ? `将订阅：<br>${describeRules(rules)}<div style="color:var(--dim);margin-top:6px">当前命中 ${fmt(hitchFiltered().length)} 条</div>`
+    : "先在左侧选城市、路线或品牌，这里会显示将要订阅的条件。";
+  loadRemoteSubs();
+}
+function closeMail(){
+  $("#scrim").classList.remove("show");
+  $("#mailDrawer").classList.remove("show");
+  document.body.style.overflow = "";
+}
 function subscribeIssueUrl(repo, profile){
   const clean = Object.fromEntries(Object.entries(profile || {})
     .filter(([k, v]) => v !== "" && v != null && !(Array.isArray(v) && !v.length)));
   const title = "[订阅] " + (clean.name || "我的订阅");
-  const body = `<!-- szhitch-subscription-v1 -->\n本 Issue 是一条预警订阅：**开启 = 订阅，关闭 = 退订**；改条件直接编辑下面的 JSON。\n\n\`\`\`json\n${JSON.stringify(clean, null, 2)}\n\`\`\`\n\n> 每轮监控会读取本 Issue：命中的车会推送到订阅里的邮箱（如填写），并在本 Issue 下回执记录（GitHub 也会因此给你发邮件）。`;
+  const body = `<!-- szhitch-subscription-v1 -->\n本 Issue 是一条预警订阅：**开启 = 订阅，关闭 = 退订**；改条件直接编辑下面的 JSON。\n\n\`\`\`json\n${JSON.stringify(clean, null, 2)}\n\`\`\`\n\n> 每轮监控会读取本 Issue：命中的车会推送到订阅里的邮箱（如填写），并在本 Issue 下回执。`;
   return `https://github.com/${repo}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
 }
-
 async function loadRemoteSubs(){
-  const repo = DATA.repo || "";
   const box = $("#remoteSubs");
+  const repo = DATA?.repo || "";
   if(!repo){
-    box.innerHTML = `<div class="hint">面板数据里没有仓库信息（本地预览未配 subscribe.repo），一键订阅不可用；可用「高级」里的手动方式。</div>`;
+    box.innerHTML = `<div class="hint">面板数据里没有仓库信息，暂时不能用 Issue 订阅；可以先用下面的手动配置。</div>`;
     return;
   }
-  box.innerHTML = `<div class="hint" style="margin-top:10px">读取订阅中…</div>`;
+  box.innerHTML = `<div class="hint">读取订阅中…</div>`;
   try{
-    const r = await fetch(`https://api.github.com/repos/${repo}/issues?state=open&per_page=50`,
+    const r = await fetch(`https://api.github.com/repos/${repo}/issues?state=open&per_page=50&sort=created&direction=desc`,
       {headers: {Accept: "application/vnd.github+json"}});
     if(!r.ok) throw new Error("HTTP " + r.status);
     const issues = await r.json();
     const subs = (Array.isArray(issues) ? issues : [])
       .filter(i => !i.pull_request && String(i.title || "").trim().startsWith("[订阅]"));
     if(!subs.length){
-      box.innerHTML = `<div class="hint" style="margin-top:10px">当前没有生效的订阅——填好邮箱点上面「⚡ 一键订阅」即可。</div>`;
+      box.innerHTML = `<div class="hint">还没有生效的订阅。填好条件后点上面的按钮，GitHub 会帮你创建。</div>`;
       return;
     }
-    box.innerHTML = `<div class="hint" style="margin-top:12px">已生效订阅（点开可改条件，关闭即退订）</div>` +
+    box.innerHTML = `<div class="hint" style="margin-top:13px">已生效 ${subs.length} 条（点开可改条件，关闭即退订）</div>` +
       subs.map(i => {
         const name = esc(String(i.title || "").replace(/^\[订阅\]\s*/, ""));
         return `<div class="prof"><b><a href="${esc(i.html_url)}" target="_blank" rel="noopener">#${i.number} ${name}</a></b>
           <span><a href="${esc(i.html_url)}" target="_blank" rel="noopener">管理 ↗</a></span></div>`;
       }).join("");
   }catch(e){
-    box.innerHTML = `<div class="hint">读取订阅失败：${esc(e.message)}（稍后会随下一轮数据恢复）</div>`;
+    box.innerHTML = `<div class="hint">读取订阅失败：${esc(e.message)}。可能是 GitHub API 限流，稍后再试。</div>`;
   }
 }
-
 function toast(msg){
   const el = $("#toast");
   el.textContent = msg;
   el.classList.add("show");
   clearTimeout(el._t);
-  el._t = setTimeout(() => el.classList.remove("show"), 1800);
+  el._t = setTimeout(() => el.classList.remove("show"), 2000);
 }
-
 async function copyText(text){
   try{
     await navigator.clipboard.writeText(text);
@@ -834,116 +1353,91 @@ async function copyText(text){
     toast("已复制到剪贴板");
   }
 }
-
 function watchProfileJson(){
   const r = watchRules();
   if(!Object.keys(r).length) return null;
   const name = [state.from, state.to].filter(Boolean).join("→") ||
-               (r.brands ? r.brands.slice(0,2).join("/") : "") || "我的订阅";
+               (r.brands ? r.brands.slice(0, 2).join("/") : "") || "我的订阅";
   return { name, ...r };
 }
 
-/* ------------------------------------------------------------------ 预警监控 */
-function renderWatchState(){
-  const w = DATA.watch || {};
-  const n = filtered().length;
-  $("#watchState").innerHTML = `<div class="kv">
-      <div class="r"><span>当前命中</span><b>${fmt(n)}<small>条</small></b></div>
-    </div>`;
-
-  const prof = $("#watchProfiles");
-  if(!w.active || !(w.profiles || []).length){
-    prof.innerHTML = `<div class="hint">还没配置订阅：在左侧选好条件后点「复制 watch_profiles」，粘到 <code>config.json</code>，之后每轮 <code>watch</code>/Actions 都会按它推送。</div>`;
-  }else{
-    prof.innerHTML = w.profiles.map(p =>
-      `<div class="prof"><b>${esc(p.name)}</b><span>${esc(p.desc.replace(/^「[^」]*」 · /, ""))}</span></div>`).join("");
-  }
-}
-
-function renderAlertLog(){
-  const a = DATA.alerts || {};
-  const rows = a.recent || [];
-  const box = $("#alertLog");
-  if(!rows.length){
-    box.innerHTML = `<div class="hint" style="margin-top:10px">还没有预警记录。配置订阅并跑一轮监控后，每一次「新上线 / 回到订单库 / 降价 / 被锁定」都会记录在这里并推送。</div>`;
-    $("#alertHint").textContent = "";
-    return;
-  }
-  box.innerHTML = rows.map(r => {
-    const tm = (r.ts || "").replace("T", " ").slice(5, 16);
-    const price = r.price ? `<span class="pr">${fmt(r.price)}<s>元</s></span>` : "";
-    const route = (r.from || r.to) ? `${esc(r.from)} → ${esc(r.to)}` : "—";
-    return `<div class="it">
-      <span class="ic">${esc(r.icon || "•")}</span>
-      <span class="bd">
-        <span class="rt">${esc(r.label || r.kind)}${r.profile ? `<span class="pf">${esc(r.profile)}</span>` : ""}</span>
-        <span class="md">${route} · ${esc(r.model || "")}${price}</span>
-      </span>
-      <span class="tm">${esc(tm)}</span>
-    </div>`;
-  }).join("");
-  const names = {new:"上新", relisted:"回库", price_drop:"降价", locked:"锁定", closed:"关闭", expired:"过期"};
-  const bits = Object.entries(a.kinds || {}).map(([k, v]) => `${esc(names[k] || k)} ${v}`);
-  $("#alertHint").textContent = `最近 30 天 ${rows.length} 条` + (bits.length ? " · " + bits.join(" / ") : "");
-}
-
-/* ------------------------------------------------------------------ 分享状态 */
 /* ------------------------------------------------------------------ 分享状态 */
 function syncHash(){
   const p = new URLSearchParams();
+  if(state.mode !== "hitch") p.set("mode", state.mode);
   if(state.from) p.set("from", state.from);
   if(state.to) p.set("to", state.to);
   if(state.brands.size) p.set("brands", [...state.brands].join(","));
   if(state.maxp) p.set("max", state.maxp);
   if(state.q) p.set("q", state.q);
   if(state.onlyWatch) p.set("watch", "1");
+  if(state.rental.days !== 7) p.set("rday", state.rental.days);
+  if(state.rental.city) p.set("rcity", state.rental.city);
+  if(state.rental.q) p.set("rq", state.rental.q);
   const h = p.toString();
   history.replaceState(null, "", h ? "#" + h : location.pathname + location.search);
 }
-
 function applyHash(){
   const h = location.hash.replace(/^#/, "");
-  if(!h) return;
   const p = new URLSearchParams(h);
-  if(p.get("from")){ state.from = p.get("from"); fromPicker && fromPicker.set(state.from, true); }
-  if(p.get("to")){ state.to = p.get("to"); toPicker && toPicker.set(state.to, true); }
+  if(p.get("mode") === "rental") state.mode = "rental";
+  if(p.get("from")) state.from = p.get("from");
+  if(p.get("to")) state.to = p.get("to");
   if(p.get("brands")) state.brands = new Set(p.get("brands").split(",").filter(Boolean));
   if(p.get("max")){ state.maxp = Number(p.get("max")); $("#maxp").value = state.maxp; }
   if(p.get("q")){ state.q = p.get("q"); $("#q").value = state.q; }
   if(p.get("watch")){ state.onlyWatch = true; $("#onlyWatch").classList.add("on"); $("#onlyWatch").textContent = "★ 只看关注"; }
-  renderBrandChips(); renderRouteBar(); renderList(); renderWatchPanel();
+  if(p.get("rday")) state.rental.days = Number(p.get("rday")) || 7;
+  if(p.get("rcity")) state.rental.city = p.get("rcity");
+  if(p.get("rq")){ state.rental.q = p.get("rq"); $("#rq").value = state.rental.q; }
+  switchMode(state.mode, true);
+  if(fromPicker){ fromPicker.set(state.from, true); toPicker.set(state.to, true); }
+  if(rentalPicker){ rentalPicker.set(state.rental.city, true); }
+  renderBrandChips(); renderRouteBar(); renderList(); renderWatchPanels();
+  renderRentalBoard(); renderPeriods(); renderRentalList(); renderRentalLeaders();
+  syncHash();
 }
 
 /* ------------------------------------------------------------------ 交互 */
-let timer = null;
+function switchMode(mode, silent){
+  state.mode = mode === "rental" ? "rental" : "hitch";
+  $$(".mode-btn").forEach(b => b.classList.toggle("on", b.dataset.mode === state.mode));
+  $("#hitchView").hidden = state.mode !== "hitch";
+  $("#rentalView").hidden = state.mode !== "rental";
+  if(state.mode === "rental" && RENTAL){ renderRentalAll(); }
+  if(!silent){ syncHash(); window.scrollTo({top: 0, behavior: "smooth"}); }
+}
+$$(".mode-btn").forEach(btn => btn.addEventListener("click", () => switchMode(btn.dataset.mode)));
+
+let qTimer = null;
 $("#q").addEventListener("input", e => {
-  clearTimeout(timer);
+  clearTimeout(qTimer);
   const v = e.target.value;
-  timer = setTimeout(() => { state.q = v; syncHash(); renderList(); renderWatchPanel(); }, 120);
+  qTimer = setTimeout(() => { state.q = v; syncHash(); renderList(); renderWatchPanels(); }, 130);
 });
 $("#maxp").addEventListener("input", e => {
-  state.maxp = Number(e.target.value) || 0; syncHash(); renderList(); renderWatchPanel();
+  state.maxp = Number(e.target.value) || 0; syncHash(); renderList(); renderWatchPanels();
 });
 $("#sort").addEventListener("change", e => { state.sort = e.target.value; renderList(); });
 $("#statusSeg").addEventListener("click", e => {
   const b = e.target.closest("button"); if(!b) return;
-  [...$("#statusSeg").children].forEach(x => x.classList.toggle("on", x === b));
+  $$("#statusSeg button").forEach(x => x.classList.toggle("on", x === b));
   state.status = b.dataset.v; renderList();
 });
 $("#brandChips").addEventListener("click", e => {
   const chip = e.target.closest(".chip"); if(!chip) return;
   const b = chip.dataset.b;
   state.brands.has(b) ? state.brands.delete(b) : state.brands.add(b);
-  renderBrandChips(); syncHash(); renderList(); renderWatchPanel();
+  renderBrandChips(); syncHash(); renderList(); renderWatchPanels();
 });
 $("#brandClear").onclick = () => {
-  state.brands.clear(); renderBrandChips(); syncHash(); renderList(); renderWatchPanel();
+  state.brands.clear(); renderBrandChips(); syncHash(); renderList(); renderWatchPanels();
 };
 $("#onlyWatch").onclick = e => {
   state.onlyWatch = !state.onlyWatch;
   e.currentTarget.classList.toggle("on", state.onlyWatch);
   e.currentTarget.textContent = state.onlyWatch ? "★ 只看关注" : "☆ 只看关注";
-  syncHash(); renderList(); renderWatchState();
+  syncHash(); renderList(); renderWatchPanels();
 };
 $("#reset").onclick = () => {
   state.from = ""; state.to = ""; state.q = ""; state.maxp = 0; state.status = "all";
@@ -952,8 +1446,8 @@ $("#reset").onclick = () => {
   toPicker && toPicker.set("", true);
   $("#q").value = ""; $("#maxp").value = "";
   $("#onlyWatch").classList.remove("on"); $("#onlyWatch").textContent = "☆ 只看关注";
-  [...$("#statusSeg").children].forEach((x,i) => x.classList.toggle("on", i === 0));
-  syncHash(); renderBrandChips(); renderRouteBar(); renderList(); renderWatchPanel(); renderWatchState();
+  $$("#statusSeg button").forEach((x, i) => x.classList.toggle("on", i === 0));
+  syncHash(); renderBrandChips(); renderRouteBar(); renderList(); renderWatchPanels();
 };
 $("#copyWatch").onclick = () => {
   const p = watchProfileJson();
@@ -967,22 +1461,56 @@ $("#copyWatchCmd").onclick = () => {
 };
 $("#createSub").onclick = () => {
   const r = watchRules();
-  if(!Object.keys(r).length){ toast("先在左侧选点条件"); return; }
-  const repo = DATA.repo || "";
-  if(!repo){ toast("缺少 subscribe.repo 配置，暂不能一键订阅"); return; }
+  if(!Object.keys(r).length){ toast("先选城市、路线或品牌"); return; }
+  const repo = DATA?.repo || "";
+  if(!repo){ toast("缺少 subscribe.repo 配置"); return; }
   const email = $("#subEmail").value.trim();
   if(email && !/^\S+@\S+\.\S+$/.test(email)){ toast("邮箱格式不对"); return; }
+  const eventSet = $$('input[name="mailEvent"]:checked').map(x => x.value);
+  if(!eventSet.length){ toast("至少选择一个提醒时刻"); return; }
   const name = [state.from, state.to].filter(Boolean).join("→")
     || (r.brands ? r.brands.slice(0, 2).join("/") : "") || "我的订阅";
-  const profile = { name, ...r };
+  const profile = { name, events: eventSet, ...r };
   if(email) profile.email = email;
   window.open(subscribeIssueUrl(repo, profile), "_blank", "noopener");
-  toast("已在 GitHub 打开订阅 Issue，提交后下轮监控自动生效");
+  toast("已打开 GitHub，提交 Issue 后下轮生效");
   setTimeout(loadRemoteSubs, 8000);
 };
-$("#reload").addEventListener("click", load);
 
-load();
+$("#mailOpen").onclick = openMail;
+$("#mailCta").onclick = openMail;
+$("#mailClose").onclick = closeMail;
+$("#scrim").onclick = closeMail;
+document.addEventListener("keydown", e => { if(e.key === "Escape") closeMail(); });
+
+/* 长租交互 */
+$("#periods").addEventListener("click", e => {
+  const b = e.target.closest(".period"); if(!b) return;
+  state.rental.days = Number(b.dataset.days);
+  syncHash(); renderRentalBoard(); renderPeriods(); renderRentalList(); renderRentalLeaders();
+});
+$("#rq").addEventListener("input", e => {
+  state.rental.q = e.target.value; syncHash(); renderRentalList();
+});
+$("#rSort").addEventListener("change", e => { state.rental.sort = e.target.value; renderRentalList(); });
+$("#reload").onclick = () => loadAll(true);
+
+/* ------------------------------------------------------------------ 自动刷新 */
+setInterval(() => {
+  if(document.visibilityState === "visible"){
+    nextRefresh -= 1;
+    setSync(false);
+    if(nextRefresh <= 0){ nextRefresh = 60; loadAll(false); }
+  }
+}, 1000);
+document.addEventListener("visibilitychange", () => {
+  if(document.visibilityState === "visible" && nextRefresh > 0 && !loading) loadAll(false);
+});
+window.addEventListener("hashchange", () => { if(DATA) applyHash(); });
+
+/* ------------------------------------------------------------------ 启动 */
+setSync(true);
+loadAll(false);
 </script>
 </body>
 </html>

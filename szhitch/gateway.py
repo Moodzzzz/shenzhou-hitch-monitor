@@ -33,6 +33,9 @@ DEFAULT_UA = (
 URI_HITCH_LIST = "/action/carrctapi/order/hitchList/v1"
 URI_HITCH_DETAIL = "/action/carrctapi/order/hitchDetail/v1"
 URI_CITY_LIST = "/action/carrctapi/order/cityList/v1"
+#: 普通租车选车（含周租/半月租/月租套餐价）。免登录，按城市 + 时间 + 坐标返回门店车型。
+URI_CHOOSE_CAR = "/resource/carrctapi/order/chooseCar/v3"
+URI_LONG_RENT_GROUPS = "/action/carrctapi/longRent/modelGroupsList/v1"
 
 # 服务端单页上限实测可到 200
 MAX_PAGE_SIZE = 200
@@ -270,3 +273,35 @@ class GatewayClient:
     def cities(self) -> dict[str, Any]:
         """城市字典：{"hotCities": [...], "allCities": [...]}"""
         return self.call(URI_CITY_LIST, {}) or {}
+
+    def choose_cars(
+        self,
+        *,
+        city_id: str | int,
+        pickup_time: str,
+        return_time: str,
+        lat: float,
+        lon: float,
+    ) -> dict[str, Any]:
+        """普通租车选车，返回 ``{"deptHangModels": [...]}``。
+
+        ``packagePrice`` 是当前租期的套餐日价（周租/月租会自动折扣），
+        ``dailyPrice`` 是门市日价，两者都只是租金口径，不含服务费/整备费。
+        """
+        return self.call(
+            URI_CHOOSE_CAR,
+            {
+                "pickupCityId": str(city_id),
+                "pickupTime": str(pickup_time),
+                "returnCityId": str(city_id),
+                "returnTime": str(return_time),
+                "entrance": 1,
+                "userChooseLat": f"{float(lat):.6f}",
+                "userChooseLon": f"{float(lon):.6f}",
+                "holidaysWaitingFlag": 0,
+            },
+        ) or {}
+
+    def long_rent_groups(self, *, city_id: str | int) -> dict[str, Any]:
+        """官方长租（月租）车型组，``lowPrice`` 是当月起价，用于校准出行服务费。"""
+        return self.call(URI_LONG_RENT_GROUPS, {"cityId": str(city_id)}) or {}

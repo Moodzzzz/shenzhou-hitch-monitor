@@ -21,6 +21,7 @@ from typing import Any, Iterable
 
 DATA_DIR = Path(__file__).resolve().parents[1] / "data"
 CITY_FILE = DATA_DIR / "cities.json"
+CITY_CENTER_FILE = DATA_DIR / "city_centers.json"
 BRAND_FILE = DATA_DIR / "brands.json"
 
 #: 行政区划码前两位 → 省级行政区。城市字典里没有省份字段，用 code 推导。
@@ -184,6 +185,27 @@ def load_cities(path: str | Path | None = None) -> CityIndex:
         return CityIndex([])
     cities = data.get("cities") if isinstance(data, dict) else data
     return CityIndex(cities or [])
+
+
+def load_city_centers(path: str | Path | None = None) -> dict[str, tuple[float, float]]:
+    """城市名 → (纬度, 经度)。
+
+    坐标用于普通租车接口按「最近门店」选车。字典是离线生成后提交的静态文件，
+    运行期不依赖高德/腾讯地图，也不需要在 Actions 里做地理编码。
+    """
+    p = Path(path) if path else CITY_CENTER_FILE
+    try:
+        raw = json.loads(p.read_text("utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    out: dict[str, tuple[float, float]] = {}
+    for name, value in (raw or {}).items():
+        try:
+            lat, lon = value
+            out[str(name)] = (float(lat), float(lon))
+        except (TypeError, ValueError):
+            continue
+    return out
 
 
 # ------------------------------------------------------- 字典构建（离线/刷新共用）

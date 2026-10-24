@@ -28,13 +28,32 @@ TIMEOUT = 15
 
 #: 允许从 Issue JSON 进入规则的键（白名单，防止塞进任意配置）
 ALLOWED_KEYS = {
-    "name", "email",
+    "name", "email", "events",
     "pickup_cities", "return_cities", "any_cities", "routes",
     "brands", "exclude_brands", "models", "exclude_models",
     "max_price", "min_price", "max_price_per_day",
     "only_special", "special_price", "min_days", "max_days",
     "date_from", "date_to",
 }
+
+_EMAIL = re.compile(r"^[^@\s<>,;]+@[^@\s<>,;]+\.[^@\s<>,;]+$")
+ALLOWED_EVENTS = {"new", "relisted", "price_drop", "locked"}
+
+
+def clean_email(value: Any) -> str:
+    text = str(value or "").strip()
+    return text if _EMAIL.match(text) else ""
+
+
+def clean_events(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    out = []
+    for item in value:
+        kind = str(item or "").strip()
+        if kind in ALLOWED_EVENTS and kind not in out:
+            out.append(kind)
+    return out
 
 _FENCE = re.compile(r"```(?:json)?\s*\n(.*?)```", re.S)
 
@@ -58,6 +77,18 @@ def parse_issue_body(body: str) -> dict[str, Any] | None:
         if not isinstance(data, dict):
             continue
         cleaned = {k: v for k, v in data.items() if k in ALLOWED_KEYS}
+        if cleaned.get("email"):
+            email = clean_email(cleaned["email"])
+            if email:
+                cleaned["email"] = email
+            else:
+                cleaned.pop("email", None)
+        if cleaned.get("events"):
+            events = clean_events(cleaned["events"])
+            if events:
+                cleaned["events"] = events
+            else:
+                cleaned.pop("events", None)
         has_filter = any(
             k in cleaned and cleaned[k]
             for k in ("pickup_cities", "return_cities", "any_cities", "routes",
@@ -82,7 +113,9 @@ def parse_issue(issue: dict[str, Any]) -> dict[str, Any] | None:
     out["__issue"] = int(issue.get("number") or 0)
     out["__title"] = title.strip()
     if profile.get("email"):
-        out["__email"] = str(profile["email"]).strip()
+        email = clean_email(profile["email"])
+        if email:
+            out["__email"] = email
     return out
 
 
