@@ -409,3 +409,54 @@ pickupCityName / returnCityName / beginTime / endTime / beginDate / endDate / hi
 |---|---|---|
 | E11 | 列表接口无锁定字段，只能由「是否在列」推断 | 观测（956 条字段并集） |
 | E12 | 偏移分页在数据变动时会漏抓，必须补抓/复核 | 观测（差 1 条 + 定向查询复现） |
+
+---
+
+## 14. 普通租车：周租 / 半月租 / 月租
+
+### 14.1 选车接口（免登录）
+
+```text
+POST https://m.zuche.com/api/gw.do?uri=/resource/carrctapi/order/chooseCar/v3
+data={"pickupCityId":"1","pickupTime":"2026-10-25 10:00",
+      "returnCityId":"1","returnTime":"2026-11-24 10:00",
+      "entrance":1,"userChooseLat":"39.90403","userChooseLon":"116.407526",
+      "holidaysWaitingFlag":0}
+```
+
+响应 `content.deptHangModels[].models[]` 关键字段：
+
+| 字段 | 含义 |
+|---|---|
+| `packagePrice` | 当前租期的套餐日租金（App 列表展示的 ¥X/日均） |
+| `dailyPrice` | 门市日租金（划线价口径） |
+| `lowPrice` | 最低日价，通常等于或略低于 `packagePrice` |
+| `modelGroupId` | 车型组：2 经济 / 9 舒适 / 16 SUV / 23 商务 / 30 豪华 / 44 新能源 |
+| `bookFlag` | 当前门店是否可订 |
+
+接口**只返回租金**，不含基础服务费、车辆整备费。`chooseCar/v2` 字段结构相同，v3 用于新列表。
+
+### 14.2 月租车型组接口（免登录）
+
+```text
+POST https://m.zuche.com/api/gw.do?uri=/action/carrctapi/longRent/modelGroupsList/v1
+data={"cityId":"1"}
+```
+
+响应 `modelGroupList[].lowPrice` 是该城市、该车型组的官方月租起价（元/月），
+用它与同一车型组 30 天租金最低值相减，可校准出该组 30 天的出行服务费：
+
+```text
+service_30 = lowPrice_month - min(rent_30)
+service_per_day = service_30 / 30
+total = rent + service_per_day × days
+```
+
+`data/rental_cities.json` 选 104 个重点城市；`szhitch/rentals.py` 用
+`data/city_centers.json` 的市中心坐标请求最近门店。`dashboard/rental.json`
+是独立产物，每 6 小时刷新，避免拖慢顺风车的 15 分钟轮询。
+
+| 编号 | 结论 | 级别 |
+|---|---|---|
+| E13 | `chooseCar/v3` 只给租金，费用明细接口需要登录 | 观测（未登录返回 `NOT_LOGIN`） |
+| E14 | 官方月租起价可用于校准「租金 + 出行服务费」总价 | 观测 + 推导（与公开必缴样例交叉核对） |
