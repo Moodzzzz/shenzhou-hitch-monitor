@@ -99,8 +99,9 @@ jobs:
             echo "面板数据无变化"
           else
             git commit -m "chore: 更新顺风车面板数据 [skip ci]"
-            git pull --rebase origin main
-            git push
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
           fi
 
       - uses: actions/configure-pages@v5
