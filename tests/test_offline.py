@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -17,10 +18,12 @@ sys.path.insert(0, str(ROOT))
 
 from szhitch.models import HitchItem, parse_date, parse_int  # noqa: E402
 from szhitch.monitor import Event, Monitor, ScanStats  # noqa: E402
+from szhitch.proxy import ProxyPool, mask, normalize_proxy, parse_proxy_list  # noqa: E402
 from szhitch.rentals import (  # noqa: E402
     RentalCity,
     apply_service_fees,
     build_payload as build_rental_payload,
+    city_from_payload,
     parse_city_deals,
 )
 from szhitch.rules import RuleSet  # noqa: E402
@@ -438,10 +441,17 @@ class TestRentals(unittest.TestCase):
         payload = build_rental_payload(
             [beijing, shanghai], pickup_at=pickup, requested_cities=2
         )
+        self.assertEqual(payload["v"], 2)
         self.assertEqual(payload["summary"]["cities"], 2)
+
+        def city_of(row):
+            meta = next(c for c in payload["cities"] if c["cityId"] == row[0])
+            return meta["name"], payload["models"][str(row[1])][0]
+
         self.assertEqual(payload["summary"]["periods"]["7"]["minDaily"], 21)
-        self.assertEqual(payload["leaders"]["7"]["daily"][0]["city"], "上海")
-        self.assertEqual(payload["leaders"]["7"]["save"][0]["city"], "上海")
+        self.assertEqual(city_of(payload["leaders"]["7"]["daily"][0])[0], "上海")
+        self.assertEqual(city_of(payload["leaders"]["7"]["save"][0])[0], "上海")
+        self.assertEqual({city_of(r)[1] for r in payload["deals"]}, {"科鲁泽", "轩逸"})
         self.assertEqual(payload["periods"]["7"]["pickupAt"], "2026-10-25 10:00")
         self.assertEqual(payload["periods"]["7"]["returnAt"], "2026-11-01 10:00")
 
@@ -452,14 +462,30 @@ class TestRentals(unittest.TestCase):
             self._content("24", "120", 1, "轩逸"), city="北京", city_id="1", days=30
         )[0]
         city.deals = {30: rows}
-        apply_service_fees(city)
+        apply_service_fees(city, calibrate=True)
         deal = city.deals[30][0]
         self.assertEqual(deal.rent_total, 720)
         self.assertEqual(deal.service_total, 1980)
-        self.assertEqual(deal.total, 2700)
-        self.assertEqual(deal.daily, 90.0)
+        # 套餐价只含租金，与 App 的「日均」同口径
+        self.assertEqual(deal.total, 720)
+        self.assertEqual(deal.daily, 24.0)
         self.assertEqual(deal.service_daily, 66.0)
+        self.assertEqual(deal.all_in_total, 2700)
+        self.assertEqual(deal.all_in_daily, 90.0)
         self.assertGreater(deal.save_pct, 0)
+
+    def test_service_fee_defaults_to_public_tiers(self):
+        """默认用公开必缴档位（经济型 50 元/天），不再拿长租起价反推。"""
+        city = RentalCity("北京", "1")
+        city.group_prices = {2: 2700}
+        city.deals = {30: parse_city_deals(
+            self._content("24", "120", 1, "轩逸"), city="北京", city_id="1", days=30
+        )[0]}
+        apply_service_fees(city)
+        deal = city.deals[30][0]
+        self.assertEqual(deal.service_daily, 50.0)
+        self.assertEqual(deal.total, 720)
+        self.assertEqual(deal.all_in_total, 2220)
 
 
 class TestSubscriptionMail(unittest.TestCase):
@@ -502,6 +528,48 @@ class TestSubscriptionMail(unittest.TestCase):
         self.assertEqual(fake.call_count, 2)
         recipients = {call.args[0]["to"][0] for call in fake.call_args_list}
         self.assertEqual(recipients, {"bj@example.com", "sh@example.com"})
+
+
+class TestProxyPool(unittest.TestCase):
+    def test_normalize_and_parse(self):
+        self.assertEqual(normalize_proxy("1.2.3.4:8080"), "http://1.2.3.4:8080")
+        self.assertEqual(normalize_proxy("http://u:p@1.2.3.4:8080"), "http://u:p@1.2.3.4:8080")
+        self.assertEqual(normalize_proxy("socks5://1.2.3.4:1080"), "")
+        self.assertEqual(normalize_proxy("not-a-proxy"), "")
+        self.assertEqual(
+            parse_proxy_list("1.1.1.1:80, 2.2.2.2:81\nhttp://3.3.3.3:82"),
+            ["http://1.1.1.1:80", "http://2.2.2.2:81", "http://3.3.3.3:82"],
+        )
+
+    def test_rotation_and_cooldown(self):
+        pool = ProxyPool(["1.1.1.1:8080"], max_fail=1, cooldown=999)
+        self.assertEqual(pool.get(), "http://1.1.1.1:8080")
+        pool.report("http://1.1.1.1:8080", False)
+        self.assertIsNone(pool.get())
+        self.assertEqual(pool.stats()["alive"], 0)
+
+    def test_paid_env_takes_priority(self):
+        with patch.dict(os.environ, {"SZHITCH_PROXIES": "http://u:p@2.2.2.2:3128"}, clear=False):
+            pool = ProxyPool(["http://1.1.1.1:8080", "http://2.2.2.2:3128"], max_fail=1)
+            self.assertEqual(len(pool), 2)
+            self.assertEqual(pool.stats()["total"], 2)
+            self.assertIn("***", mask("http://u:p@2.2.2.2:3128"))
+            self.assertNotIn("u:p", mask("http://u:p@2.2.2.2:3128"))
+
+    def test_city_from_payload_roundtrip(self):
+        city = RentalCity("北京", "1")
+        city.deals[30] = parse_city_deals(
+            TestRentals._content("24", "120", 2011, "日产轩逸"),
+            city="北京", city_id="1", days=30,
+        )[0]
+        apply_service_fees(city, fallback={2: 60})
+        pickup = datetime(2026, 10, 25, 10, tzinfo=timezone(timedelta(hours=8)))
+        payload = build_rental_payload([city], pickup_at=pickup, requested_cities=1)
+        restored = city_from_payload(payload, "北京")
+        self.assertIsNotNone(restored)
+        self.assertTrue(restored.stale)
+        self.assertEqual(restored.deals[30][0].model, "日产轩逸")
+        self.assertEqual(restored.deals[30][0].total, city.deals[30][0].total)
 
 
 if __name__ == "__main__":
