@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import html as _html
 import json
 import os
@@ -155,10 +156,13 @@ class Monitor:
         self.last_items: list[HitchItem] = []
         self.last_states: dict[str, ListingState] = {}
         self._city_ids: dict[str, str] | None = None
-        # 订阅中心（GitHub Issues）：每轮刷新
+        # 订阅中心：优先私有控制面，未配置时兼容旧 GitHub Issues。
         self.subscriptions: list[dict[str, Any]] = []
         self.subscription_repo: str = ""
         self.subscription_emails: list[str] = []
+        self.control_plane = None
+        self.backend_mode = False
+        self.scan_stamp = utcnow()[:16].replace("-", "").replace(":", "").replace("T", "")
 
     # ------------------------------------------------------------------ 通知
 
@@ -183,13 +187,44 @@ class Monitor:
     # -------------------------------------------------------------- 订阅中心
 
     def _refresh_subscriptions(self) -> None:
-        """从 GitHub Issues 读取订阅，合并进规则集，并归集邮箱收件人。
+        """读取私有控制面的已验证规则；未配置时才回退旧 Issue。
 
-        失败时保留本地配置的规则，不影响本轮监控。
+        控制面已配置但读取失败时，本轮不发订阅邮件，避免把旧规则当成
+        当前授权继续发送。公开 Issue 回执在 backend 模式下永久关闭。
         """
         sub_cfg = self.cfg.get("subscribe") or {}
         if not sub_cfg.get("enabled", True):
             return
+        try:
+            from .control_plane import ControlPlaneError, from_config
+
+            backend = from_config(self.cfg)
+        except Exception as exc:
+            backend = None
+            self.log(f"[订阅] 控制面配置错误，暂停订阅推送: {exc}")
+            self.backend_mode = True
+            self.subscriptions = []
+            return
+        if backend is not None:
+            self.control_plane = backend
+            self.backend_mode = True
+            try:
+                subs = backend.subscriptions()
+            except ControlPlaneError as exc:
+                self.log(f"[订阅] 控制面读取失败，本轮暂停订阅推送: {exc}")
+                self.subscriptions = []
+                return
+            self.subscriptions = subs
+            self.subscription_emails = []
+            merged = dict(self.cfg)
+            merged["watch_profiles"] = list(self.cfg.get("watch_profiles") or []) + [
+                {k: v for k, v in s.items() if not k.startswith("__")} for s in subs
+            ]
+            self.profiles = build_profiles(merged)
+            self.rules = self.profiles.fallback
+            self.log(f"[订阅] 从私有控制面载入 {len(subs)} 条已验证规则（邮箱不回传）")
+            return
+
         repo = str(sub_cfg.get("repo") or "") or os.environ.get("GITHUB_REPOSITORY", "")
         if "/" not in repo:
             return
@@ -202,11 +237,12 @@ class Monitor:
                 timeout=float(self.cfg.get("poll", {}).get("timeout", 20)),
             )
         except Exception as exc:
-            self.log(f"[订阅] 读取 Issues 失败（退回本地配置）: {exc}")
+            self.log(f"[订阅] 读取 Issues 失败（保留本地配置）: {exc}")
             return
 
         self.subscriptions = subs
         self.subscription_repo = repo
+        self.backend_mode = False
         if not subs:
             return
 
@@ -218,9 +254,7 @@ class Monitor:
 
         emails = sorted({s["__email"] for s in subs if s.get("__email")})
         self.subscription_emails = emails
-        # 不把订阅邮箱并进全局 SMTP 收件人：那会把 A 的预警发给 B。
-        # 每封订阅邮件在 _email_subscriptions 里按各自规则单独发送。
-        self.log(f"[订阅] 从 Issues 载入 {len(subs)} 条订阅"
+        self.log(f"[订阅] 从 legacy Issue 载入 {len(subs)} 条订阅"
                  + (f"，其中 {len(emails)} 个邮箱订阅" if emails else ""))
 
     @staticmethod
@@ -230,12 +264,65 @@ class Monitor:
             return set()
         return {str(x) for x in raw if x in ("new", "relisted", "price_drop", "locked")}
 
-    def _email_subscriptions(self, matched: list[Event], stats: ScanStats) -> None:
-        """按订阅规则把命中结果直发到订阅邮箱。
+    def _enqueue_backend(self, matched: list[Event]) -> None:
+        """命中任务写进控制面 outbox；邮箱由控制面解析，Python 不持有收件人。"""
+        if not self.control_plane or not self.subscriptions:
+            return
+        jobs: list[dict[str, Any]] = []
+        for sub in self.subscriptions:
+            sub_id = int(sub.get("__subscription_id") or 0)
+            if not sub_id:
+                continue
+            rule = RuleSet.from_config({
+                k: v for k, v in sub.items() if not k.startswith("__")
+            })
+            allowed = self._subscription_events(sub)
+            hits = [
+                ev for ev in matched
+                if (not allowed or ev.kind in allowed) and rule.evaluate(ev.item)[0]
+            ]
+            if not hits:
+                continue
+            event_keys = ",".join(
+                f"{ev.kind}:{ev.item.hitch_id}:{ev.item.price}" for ev in hits
+            )
+            digest = hashlib.sha1(event_keys.encode("utf-8")).hexdigest()[:20]
+            payload = {
+                "subject": f"你的订阅 · {len(hits)} 条新提醒",
+                "intro": f"订阅「{sub.get('name') or sub_id}」本轮命中 {len(hits)} 条。",
+                "events": [
+                    {
+                        "title": f"{ev.item.pickup_city} → {ev.item.return_city} · {ev.item.model_name}",
+                        "route": f"{ev.item.pickup_city} → {ev.item.return_city}",
+                        "when": ev.item.date_range() or "",
+                        "price": ev.item.price,
+                        "hitchId": ev.item.hitch_id,
+                        "kind": ev.kind,
+                    }
+                    for ev in hits[:30]
+                ],
+            }
+            jobs.append({
+                "subscriptionId": sub_id,
+                "eventKey": f"{self.scan_stamp}:{digest}",
+                "payload": payload,
+            })
+        if not jobs:
+            return
+        try:
+            result = self.control_plane.enqueue(jobs)
+            self.log(
+                f"  [订阅] 已写入控制面 outbox：接收 {result.get('accepted', 0)}，"
+                f"跳过 {result.get('skipped', 0)}"
+            )
+        except Exception as exc:
+            self.log(f"  [订阅] 控制面写入失败，本轮不发订阅邮件: {exc}")
 
-        同一邮箱有多条订阅时合并成一封；每条订阅只收到自己规则命中的车。
-        没配置 SMTP 或订阅没填邮箱时静默跳过，Issue 回执仍然生效。
-        """
+    def _email_subscriptions(self, matched: list[Event], stats: ScanStats) -> None:
+        """按订阅规则发信：私有控制面优先，未配置时才走 legacy SMTP。"""
+        if self.backend_mode:
+            self._enqueue_backend(matched)
+            return
         smtp_cfg = (self.cfg.get("notify") or {}).get("smtp")
         if not smtp_cfg or not self.subscriptions:
             return
@@ -277,7 +364,9 @@ class Monitor:
                 self.log(f"  [订阅邮件] {email} 发送失败: {exc}")
 
     def _comment_subscriptions(self, matched: list[Event]) -> None:
-        """把命中结果回执到对应的订阅 Issue（GitHub 会给订阅者发邮件）。"""
+        """legacy：把命中结果回执到公开 Issue；私有控制面启用后跳过。"""
+        if self.backend_mode:
+            return
         sub_cfg = self.cfg.get("subscribe") or {}
         if not matched or not self.subscriptions or not sub_cfg.get("comment_alerts", True):
             return
@@ -398,6 +487,7 @@ class Monitor:
         ignore_state=True 让演练忽略历史记录，把当前在售全量当作「新上线」推演。
         """
         started = time.monotonic()
+        self.scan_stamp = utcnow()[:19].replace("-", "").replace(":", "").replace("T", "")
         stats = ScanStats()
         behavior = self.cfg.get("behavior", {})
 
