@@ -11,3 +11,11 @@ config.test.json
 
 # 代理池缓存（本地/CI 临时）
 .cache/
+
+# 私有控制面本地开发
+control-plane/node_modules/
+control-plane/.wrangler/
+control-plane/.dev.vars
+.env
+.env.*
+!.env.example

@@ -3,7 +3,7 @@
 盯「神州租车」App 里的两类车：
 
 1. **顺风车**（异地调车特价车）—— 车需要从一个城市调回另一个城市，你以 1 元 / 50 元 / 100 元的固定价把车开过去，租期 1～13 天。放出来基本靠抢，所以需要程序盯着。
-2. **周租 / 半月租 / 月租** —— 按 7 / 15 / 30 天分别抓取真实报价，并拆成「车辆租金 + 出行服务费」，避免只看租金造成的假低价。
+2. **周租 / 半月租 / 月租** —— 按 7 / 15 / 30 天分别取数；列表日均只作候选参考，价格日历单独核对逐日合计，订单应付未取得费用明细前不伪造。
 
 程序做的事：**定时拉全量 → 比对生命周期（新上线 / 被锁定 / 回到订单库 / 过期剔除）→ 按条件过滤 → 发邮件等通知**，并把结果同步到一个可搜索的**可视面板**。
 
@@ -32,7 +32,7 @@
 | | |
 |---|---|
 | 零第三方依赖 | 纯 Python 标准库，云端不用 `pip install` |
-| 一键订阅 | 面板上填条件点一下 → 存成仓库 Issue，监控自动读取；**关闭 Issue 即退订** |
+| 私有订阅 | 面板填条件与邮箱 → 后台发送验证链接 → 确认后生效；每封提醒自带管理/退订入口 |
 | 免登录 | 列表/详情/城市字典都不需要账号、Cookie 或签名 |
 | 全国覆盖 | 5 个请求拿全 950+ 条（`pageSize=200`） |
 | 城市全量 | 471 个城市的字典，含省份、全拼、首字母；中文 / `chengdu` / `cd` 都能搜到 |
@@ -41,22 +41,21 @@
 | 抗漏抓 | 全量翻页遇到数据位移会自动补一遍；消失的车再按线路复核 |
 | 首轮不刷屏 | 首次运行只建基线，不把 900+ 条历史当「新上线」 |
 | 邮件优先 | HTML 邮件，卡片式排版，手机上也好看 |
-| 订阅隔离 | 每条订阅只收到自己规则命中的车，不会把 A 的预警发给 B |
-| 长租行情 | 7 / 15 / 30 天套餐价，与 App「日均」同口径；出行服务费单独估算、不混进套餐价 |
-| 全量长租 | 全国 471 城 × 全车型 × 三档租期，每天 12:00 抓一轮 |
+| 订阅隔离 | 每条订阅只收到自己规则命中的车；私有后台保存邮箱，公开 JSON 不出现地址 |
+| 长租行情 v3 | 列表日均 / 价格日历合计 / 订单应付三档证据分开；无证据显示「待核价」 |
+| 全量长租 | 全国 471 城 × 全车型 × 三档租期；每城每租期抽样核验价格日历 |
 | 代理池 | 免费代理自动验活 + 付费代理优先，分散出口、降低限流 |
 | 实时同步 | 顺风车每 15 分钟刷新；长租每天 12:00 全量刷新；面板每 60 秒自动读最新 JSON |
-| 可视面板 | 时刻表式看板：顺风车 / 长租双模式、全量城市选择器、品牌筛选、预警监控 |
+| App 式卡片流 | 顺风车首屏精选 6 辆 + 6 条路线，图片卡片、路线渐进展开，不再铺满全表 |
+| 私有控制面 | Cloudflare Workers + D1：管理员、double opt-in、邮件 outbox、审计、支付禁用态预留 |
 
 ---
 
 ## 5 分钟上手
 
-**不想碰命令行？** 打开看板 → 左侧选好城市 / 路线 / 品牌 → 填邮箱 → 点「⚡ 一键订阅」：
-条件会存成仓库里的一个 Issue，下一轮监控自动按它推送，**关闭 Issue 即退订**。
-邮件提醒：命中时监控会在订阅 Issue 下回执（GitHub 自动向订阅者发邮件，零配置）；
-若在 Secrets 里配置了 SMTP（`SZHITCH_SMTP_HOST/_PORT/_USER/_PASS/_TO`，可选 `_FROM`），
-订阅里填的邮箱会按各自规则**单独直发**，不会串信。
+**不想碰命令行？** 打开看板 → 选好城市 / 路线 / 品牌 → 「邮件提醒」→ 填邮箱 → 发送验证邮件。
+邮箱只进私有后台；必须点邮件里的确认链接，订阅才会启用。未部署后台时页面保持只读，不会把邮箱写进公开仓库。
+后台按订阅规则匹配车辆，每封提醒只发给对应订阅人，并带独立退订链接。
 
 ```bash
 python main.py init                      # 生成配置
@@ -95,7 +94,7 @@ pip install pypinyin && python tools/build_cities.py
 
 ![顺风车看板](docs/panel.png)
 
-长租好价：7 / 15 / 30 天，逐条列出租金、出行服务费、总价与租期时间。
+长租票版：列表日均、价格日历合计、订单应付三层证据分开显示。
 
 ![长租看板](docs/panel-rental.png)
 
@@ -110,28 +109,21 @@ pip install pypinyin && python tools/build_cities.py
 
 功能：
 
-- **城市选择器（全量 471 城）**：不依赖「当前有没有车」，没车的城市也在列表里，方便提前盯
-  - 中文 / 全拼 / 首字母三种搜法：`成都`、`chengdu`、`cd` 都命中
-  - 右侧 A–Z 索引条直接跳到字母段，按省份也能搜（输入「云南」）
-  - 每个城市后面标着当前取车 / 还车条数，一眼看出哪条线路有货
-- **车型筛选**：品牌 chip（大众 / 理想 / 宝马…，带条数）多选 + 车系关键词，两者可叠加
-- **路线筛选**：取车 + 还车两个选择器就是一条定向路线，或点「热门路线」直接跳进去
-- **只看关注**：服务端订阅命中的车会带 ★ 与左侧琥珀竖线
-- **关注条件 → 订阅**：选完条件后一键复制 `watch_profiles` / `watch` JSON，粘进 `config.json` 即生效
-- **链接可分享**：筛选条件写进 URL hash（`#from=成都&brands=大众`），发给别人/收藏都带着条件
-- **预警监控**：盯指定城市 / 指定路线 / 指定车型的核心面板
-  - 当前命中：筛选条件命中的车，一键「只看命中」
-  - 订阅状态：服务端生效中的 `watch_profiles` 及其条件
-  - 预警记录：最近 30 天每次「新上线 / 回到订单库 / 降价 / 被锁定」的时间、路线、车型、价格、命中的订阅名
-- **观测节奏**：每天新增多少条，跑得越久越准
-- **长租好价**：7 / 15 / 30 天三档，按城市看最低全包日均
-  - 每条报价列出取车 / 还车时间、租期天数、车型、套餐日均、套餐价、门市日租对比
-  - **套餐价 / 日均与 App 选车页完全同口径**：周租、半月租、月租各自有套餐折扣，租得越久日均越低
-  - 出行服务费（基础服务 + 车辆整备）在 App 里是订单页另收，这里只给「全包约」估算，不混进套餐价
-  - 范围是全城市（471 城）× 全车型，不做截断；按城市筛选即可看该城全部车型
+- **App 式顺风车卡片流**：首屏只展示 6 辆精选车，其余按路线分组，每条路线先给 3 辆；点「继续看路线」或「＋ N 辆」渐进展开。卡片带真实车图、路线、车型、取还日期、门店、总价与日均。
+- **城市选择器（全量 471 城）**：中文 / 全拼 / 首字母三种搜法，右侧 A–Z 索引条；每个城市标当前取车 / 还车条数。
+- **路线筛选**：取车 + 还车两个选择器就是一条定向路线，或点「热门路线」直接跳进去。
+- **更多筛选**：品牌 chip、车系关键词、可预订/锁定状态收进折叠区，不再挤满首屏。
+- **只看关注**：服务端订阅命中的车带 ★。
+- **链接可分享**：筛选条件写进 URL hash（`#from=成都&brands=大众`）。
+- **预警监控**：命中车、订阅状态、最近 30 天预警流水。
+- **长租票版**：7 / 15 / 30 天三档，每行显示列表日均、日历逐日合计和「待核价」的订单应付。
+  - **列表日均**来自 `chooseCar/v3` 的 `packagePrice`，只负责找候选，绝不乘天数冒充总价。
+  - **日历已核**来自 `chooseCarPriceCalendar/v1`，逐日价完整覆盖租期且合计与 `totalDailyPrice` 一致才盖章。
+  - **订单应付**没有登录后的费用明细证据，固定在 UI 显示「待核价」；可退押金、可选保障和优惠不混进租金。
+  - 范围是全城市（471 城）× 全车型；旧数据沿用会保留原租期，不会被贴上新日期。
 
-> 界面是「夜间发车牌」风格：路线做成虚线轨道，价格用等宽数字右对齐，好扫。
-> 移动端会把行折叠成两列，筛选栏取消吸顶。
+> 界面是「奶油纸票据 × 调度验讫章」风格，价格用等宽数字，图片卡片按路线分组。
+> 移动端单列卡片；筛选和路线渐进展开，长租 JSON 只在进入票版时加载。
 
 > 「预警记录」来自监控每轮的命中流水（与是否配置通知渠道无关）；刚跑第一天记录较少属正常。
 
@@ -281,6 +273,37 @@ python main.py test-notify
 
 ---
 
+## 私有订阅后台（可选，推荐公开部署时使用）
+
+公开 Pages 不能保存管理员会话、邮箱、SMTP/支付密钥。`control-plane/` 是独立低成本后端：
+
+- **Cloudflare Workers + D1**：管理员、私有订阅、double opt-in、签名退订、发信 outbox、审计。
+- **管理员**：GitHub App 用户 OAuth + `state + PKCE(S256)` + `ADMIN_GITHUB_LOGINS` 白名单，不保存 GitHub access token。
+- **邮件**：Resend HTTP API；会员接受/provider message id 与最终投递分开记录。失败指数退避，5 次后进入 dead，可在后台手动重试。
+- **规则只一套**：Actions 从 `/internal/v1/subscriptions` 读取已验证订阅的 `id + rules`（不含邮箱），继续使用 Python `rules.py` 匹配，再把幂等通知任务写入 `/internal/v1/outbox`。
+- **支付**：只有 `products/prices/orders/payment_events/webhook_receipts/entitlements` 和 `DisabledPaymentProvider`；任何 `/api/payments/*` 返回 `payment_disabled`，没有真实收款。
+
+本地验证：
+
+```bash
+cd control-plane
+npm install
+npx wrangler d1 migrations apply szhitch-control-plane --local
+cp .dev.vars.example .dev.vars   # 填入本地测试值，EMAIL_MODE=console
+npm test
+npx wrangler dev --local --port 8790
+```
+
+部署前必须替换 `wrangler.jsonc` 的 D1 ID、GitHub App Client ID 和公开 Worker 地址，并在 Cloudflare 配置：
+`GITHUB_APP_CLIENT_SECRET`、`SESSION_SECRET`、`INTERNAL_TOKEN`、`RESEND_API_KEY`。
+GitHub Actions 再加 `SZHITCH_CONTROL_PLANE_URL`、`SZHITCH_INTERNAL_TOKEN`；
+面板的 `dashboard/runtime.json` 改为 `enabled: true` 并填写 Worker 地址。
+
+> 后台未部署时 `runtime.json` 保持 `enabled: false`，面板只读、不收集邮箱。
+> 旧 Issue 订阅仅在 `subscribe.backend_url` 为空时兼容存在；迁移完成后应关闭 Issue 入口并清理历史邮箱（清理前需人工确认）。
+
+---
+
 ## 代理池
 
 长租要一次跑 471 城 × 3 档 ≈ 1900 次请求，集中在十几分钟里，单 IP 容易被限流。
@@ -309,12 +332,13 @@ python main.py rentals --no-proxy    # 这一轮强制直连（排查用）
 ### GitHub Actions（推荐，零成本）
 
 1. 建一个**公开**仓库（Free 套餐的 Pages 只支持公开仓库），把本目录推上去
-2. **Settings → Secrets and variables → Actions** 添加邮件等密钥（见上表）
+2. **Settings → Secrets and variables → Actions** 添加通知密钥（见上表）
 3. **Settings → Pages → Source** 选 `GitHub Actions`
 4. 启用 Actions，手动跑一次（首次是建基线）
+5. 公开订阅需要私有后台时，按“私有订阅后台”一节部署，再配置 `SZHITCH_CONTROL_PLANE_URL`、`SZHITCH_INTERNAL_TOKEN`
 
-之后 `szhitch.yml` 每 15 分钟跑：抓取 → 发通知 → 提交 `dashboard/dashboard.json` → 发布 Pages；
-`rental.yml` 每天北京时间 12:00 跑：抓取 471 城 × 全车型 × 三档长租 → 提交 `dashboard/rental.json`
+之后 `szhitch.yml` 每 15 分钟跑：抓取 → 通知/写入后台 outbox → 提交 `dashboard/dashboard.json` → 发布 Pages；
+`rental.yml` 每天北京时间 12:00 跑：抓取 471 城 × 全车型 × 三档长租与抽样价格日历 → 提交 `dashboard/rental.json`
 （不单独发布 Pages，避免用旧顺风车数据覆盖线上；下一轮 15 分钟监控会带上它）。
 面板地址形如 `https://<用户名>.github.io/<仓库名>/`。
 
@@ -412,19 +436,25 @@ shenzhou-hitch-monitor/
 │   ├── catalog.py          城市索引（拼音/首字母/省份）+ 车型品牌解析
 │   ├── rules.py            筛选规则、路线方向匹配、订阅分组
 │   ├── store.py            状态机 + 到达/预警日志（SQLite / JSON / OSS）
-│   ├── subscriptions.py    订阅中心：GitHub Issue 订阅的读取与回执
-│   ├── monitor.py          生命周期判定、文案、邮件 HTML
+│   ├── subscriptions.py    legacy Issue 订阅（迁移期兼容）
+│   ├── control_plane.py    私有后台客户端：读规则、写幂等通知任务
+│   ├── monitor.py          生命周期判定、规则匹配、通知
+│   ├── rentals.py          v3 长租列表参考价 + 价格日历抽样核验
+│   ├── rental_pricing.py   金额分、价格日历契约与证据等级
 │   ├── insights.py         面板数据 + 预警记录
 │   ├── notify.py           邮件/企微/飞书/钉钉/Bark/Server酱
 │   └── config.py           配置加载
-├── dashboard/              静态看板（index.html + dashboard.json）
-├── tools/build_cities.py   生成城市字典（拼音/首字母，需 pypinyin）
+├── dashboard/              静态看板（index.html + dashboard.json + runtime.json）
+├── control-plane/          Workers + D1 私有后台（管理员/订阅/outbox/支付预留）
+├── tools/
+│   ├── build_cities.py     生成城市字典（需 pypinyin）
+│   └── probe_rental_prices.py  只读核验 7/15/30 天价格日历
 ├── cloud/                  云函数入口
 ├── deploy/systemd/         systemd unit
 ├── data/cities.json        471 个城市 + 省份 + 拼音 + 首字母
 ├── data/brands.json        品牌别名表（约 100 个品牌）
-├── docs/                   逆向报告 + 面板截图
-└── tests/                  76 项离线测试（无需联网）
+├── docs/                   逆向报告 + 面板截图 + 脱敏价格样本
+└── tests/                  92 项 Python 测试；control-plane 另有 7 项 Node 测试
 ```
 
 ```bash

@@ -317,6 +317,8 @@ def cmd_rentals(args) -> int:
         rental_cfg["workers"] = args.workers
     if args.days:
         rental_cfg["periods"] = [int(x) for x in args.days.split(",") if x.strip()]
+    if getattr(args, "calendar_limit", None) is not None:
+        rental_cfg["calendar_verify_per_city"] = max(0, int(args.calendar_limit))
     if getattr(args, "no_proxy", False):
         cfg.setdefault("proxy", {})["enabled"] = False
     cities = [x.strip() for x in (args.cities or "").split(",") if x.strip()] or None
@@ -334,7 +336,8 @@ def cmd_rentals(args) -> int:
     print(
         f"长租行情已导出：{path}（{payload['summary']['cities']} 城 / "
         f"{payload['summary']['models']} 款 / {payload['summary']['deals']} 条报价 / "
-        f"最低 {payload['summary']['minDaily']} 元/天）"
+        f"最低列表参考 {payload['summary']['minListDaily']} 元/天 / "
+        f"日历已核 {payload['summary'].get('calendarVerified', 0)} 条）"
     )
     return 0
 
@@ -444,6 +447,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--cities", default="", help="只抓这些城市，逗号分隔（默认全城市）")
     p.add_argument("--limit", type=int, default=0, help="只抓前 N 个城市，便于调试")
     p.add_argument("--workers", type=int, default=0, help="并发线程数，默认 4")
+    p.add_argument("--calendar-limit", type=int, default=None,
+                   help="每城每租期做价格日历核验的最低价条数；0 仅保留列表参考价")
     p.add_argument("--no-proxy", action="store_true", help="本轮直连，不走代理池")
     p.set_defaults(func=cmd_rentals)
 

@@ -78,19 +78,11 @@
     "min_request_interval": 0.3,
     "timeout": 20,
     "retries": 2,
-    "service_fee_fallback": {
-      "2": 50,
-      "9": 60,
-      "16": 80,
-      "23": 80,
-      "30": 100,
-      "44": 50
-    },
     "full_scan": true,
     "workers": 4,
     "save_every": 25,
-    "calibrate_service_fee": false,
-    "service_fee_note": "公开必缴档位：基础服务+车辆整备，按车型组估算，App 在订单页另收"
+    "pricing_mode": "list_reference",
+    "calendar_verify_per_city": 3
   },
   "behavior": {
     "first_run": "silent",
@@ -129,6 +121,7 @@
   },
   "subscribe": {
     "enabled": true,
+    "backend_url": "",
     "repo": "",
     "comment_alerts": true
   },
