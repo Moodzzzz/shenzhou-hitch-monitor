@@ -45,6 +45,9 @@ DEFAULT_CONFIG: dict[str, Any] = {
     # repo 留空时，Actions 里自动取 GITHUB_REPOSITORY；关闭 Issue 即退订。
     "subscribe": {
         "enabled": True,
+        # 配置后优先使用私有控制面；内部令牌只从 SZHITCH_INTERNAL_TOKEN 读取。
+        "backend_url": "",
+        # legacy 公开 Issue 仅在 backend_url 为空时启用；迁移完成后应清空。
         "repo": "",
         "comment_alerts": True,
     },
@@ -58,10 +61,10 @@ DEFAULT_CONFIG: dict[str, Any] = {
         "min_request_interval": 0.55,
         "timeout": 20,
         "retries": 2,
-        # 拿不到官方月租起价时的兜底「出行服务费」元/天（按车型组）
-        "service_fee_fallback": {
-            "2": 50, "9": 60, "16": 80, "23": 80, "30": 100, "44": 50,
-        },
+        # v3 只保存有证据的价格层级；没有专用接口/订单证据时不生成应付价。
+        "pricing_mode": "list_reference",
+        # 每城每租期只对列表最便宜的前 N 款做价格日历核验；0 关闭。
+        "calendar_verify_per_city": 3,
     },
     "behavior": {
         "first_run": "silent",

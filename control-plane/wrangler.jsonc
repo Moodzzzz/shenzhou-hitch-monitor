@@ -1,0 +1,29 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "szhitch-control-plane",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-20",
+  "observability": { "enabled": true },
+  "triggers": {
+    "crons": ["*/2 * * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "szhitch-control-plane",
+      "database_id": "REPLACE_WITH_D1_DATABASE_ID",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "vars": {
+    "PUBLIC_WORKER_ORIGIN": "https://szhitch-control-plane.example.workers.dev",
+    "PUBLIC_DASHBOARD_ORIGIN": "https://moodzzzz.github.io",
+    "PUBLIC_CONTROL_PLANE_URL": "https://szhitch-control-plane.example.workers.dev",
+    "ADMIN_GITHUB_LOGINS": "Moodzzzz",
+    "GITHUB_APP_CLIENT_ID": "REPLACE_WITH_GITHUB_APP_CLIENT_ID",
+    "EMAIL_PROVIDER": "resend",
+    "EMAIL_FROM": "神州车价 <alerts@example.com>",
+    "EMAIL_MODE": "console",
+    "PAYMENTS_ENABLED": "false"
+  }
+}

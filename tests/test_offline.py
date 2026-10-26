@@ -19,12 +19,17 @@ sys.path.insert(0, str(ROOT))
 from szhitch.models import HitchItem, parse_date, parse_int  # noqa: E402
 from szhitch.monitor import Event, Monitor, ScanStats  # noqa: E402
 from szhitch.proxy import ProxyPool, mask, normalize_proxy, parse_proxy_list  # noqa: E402
+from szhitch.rental_pricing import (  # noqa: E402
+    PriceContractError,
+    money_to_fen,
+    parse_price_calendar,
+)
 from szhitch.rentals import (  # noqa: E402
     RentalCity,
-    apply_service_fees,
     build_payload as build_rental_payload,
     city_from_payload,
     parse_city_deals,
+    validate_rental_payload,
 )
 from szhitch.rules import RuleSet  # noqa: E402
 from szhitch.store import JsonStore, ListingState, SqliteStore  # noqa: E402
@@ -391,6 +396,7 @@ class TestRentals(unittest.TestCase):
         return {
             "deptHangModels": [
                 {
+                    "deptId": 498,
                     "deptName": "高新区自助点",
                     "deptDistance": "1.2km",
                     "models": [
@@ -410,16 +416,18 @@ class TestRentals(unittest.TestCase):
             ]
         }
 
-    def test_parse_city_deals_uses_package_price(self):
+    def test_parse_city_deals_keeps_list_price_as_reference(self):
         rows, depts, models = parse_city_deals(
             self._content(), city="北京", city_id="1", days=30
         )
         self.assertEqual(depts, 1)
         self.assertEqual(models, 1)
-        self.assertEqual(rows[0].daily, 24)
-        self.assertEqual(rows[0].total, 720)
+        self.assertEqual(rows[0].rent_daily, 24)
+        self.assertIsNone(rows[0].calendar_total_fen)
+        self.assertEqual(rows[0].list_total_fen, 72000)
+        self.assertEqual(rows[0].evidence, "list_reference")
+        self.assertEqual(rows[0].dept_id, "498")
         self.assertEqual(rows[0].save_pct, 80)
-        self.assertEqual(rows[0].tier, "great")
         self.assertEqual(rows[0].brand, "日产")
 
     def test_parse_city_deals_filters_unbookable(self):
@@ -441,51 +449,45 @@ class TestRentals(unittest.TestCase):
         payload = build_rental_payload(
             [beijing, shanghai], pickup_at=pickup, requested_cities=2
         )
-        self.assertEqual(payload["v"], 2)
+        self.assertEqual(payload["v"], 3)
         self.assertEqual(payload["summary"]["cities"], 2)
+        self.assertEqual(payload["pricing"]["payableAvailable"], False)
+        self.assertNotIn("allInTotal", payload)
 
         def city_of(row):
             meta = next(c for c in payload["cities"] if c["cityId"] == row[0])
             return meta["name"], payload["models"][str(row[1])][0]
 
-        self.assertEqual(payload["summary"]["periods"]["7"]["minDaily"], 21)
+        self.assertEqual(payload["periods"]["7"]["minListDaily"], 21)
         self.assertEqual(city_of(payload["leaders"]["7"]["daily"][0])[0], "上海")
         self.assertEqual(city_of(payload["leaders"]["7"]["save"][0])[0], "上海")
         self.assertEqual({city_of(r)[1] for r in payload["deals"]}, {"科鲁泽", "轩逸"})
         self.assertEqual(payload["periods"]["7"]["pickupAt"], "2026-10-25 10:00")
         self.assertEqual(payload["periods"]["7"]["returnAt"], "2026-11-01 10:00")
+        validate_rental_payload(payload)
 
-    def test_service_fee_calibrated_by_monthly_price(self):
+    def test_contract_rejects_all_in_fee_formula(self):
         city = RentalCity("北京", "1")
-        city.group_prices = {2: 2700}
-        rows = parse_city_deals(
-            self._content("24", "120", 1, "轩逸"), city="北京", city_id="1", days=30
-        )[0]
-        city.deals = {30: rows}
-        apply_service_fees(city, calibrate=True)
-        deal = city.deals[30][0]
-        self.assertEqual(deal.rent_total, 720)
-        self.assertEqual(deal.service_total, 1980)
-        # 套餐价只含租金，与 App 的「日均」同口径
-        self.assertEqual(deal.total, 720)
-        self.assertEqual(deal.daily, 24.0)
-        self.assertEqual(deal.service_daily, 66.0)
-        self.assertEqual(deal.all_in_total, 2700)
-        self.assertEqual(deal.all_in_daily, 90.0)
-        self.assertGreater(deal.save_pct, 0)
-
-    def test_service_fee_defaults_to_public_tiers(self):
-        """默认用公开必缴档位（经济型 50 元/天），不再拿长租起价反推。"""
-        city = RentalCity("北京", "1")
-        city.group_prices = {2: 2700}
         city.deals = {30: parse_city_deals(
             self._content("24", "120", 1, "轩逸"), city="北京", city_id="1", days=30
         )[0]}
-        apply_service_fees(city)
-        deal = city.deals[30][0]
-        self.assertEqual(deal.service_daily, 50.0)
-        self.assertEqual(deal.total, 720)
-        self.assertEqual(deal.all_in_total, 2220)
+        pickup = datetime(2026, 10, 25, 10, tzinfo=timezone(timedelta(hours=8)))
+        payload = build_rental_payload([city], pickup_at=pickup)
+        deal = payload["deals"][0]
+        self.assertIsNone(deal[5])
+        self.assertNotIn("serviceTotal", payload)
+        self.assertNotIn("payableTotal", payload)
+
+    def test_validate_rejects_stale_summary_contradiction(self):
+        city = RentalCity("北京", "1", stale=True)
+        city.deals = {7: parse_city_deals(
+            self._content(), city="北京", city_id="1", days=7
+        )[0]}
+        pickup = datetime(2026, 10, 25, 10, tzinfo=timezone(timedelta(hours=8)))
+        payload = build_rental_payload([city], pickup_at=pickup)
+        payload["summary"]["carried"] = 0
+        with self.assertRaises(PriceContractError):
+            validate_rental_payload(payload)
 
 
 class TestSubscriptionMail(unittest.TestCase):
@@ -501,6 +503,39 @@ class TestSubscriptionMail(unittest.TestCase):
             '```json\n{"name":"测试","email":"not-an-email","pickup_cities":["北京"]}\n```'
         )
         self.assertNotIn("email", bad)
+
+    def test_backend_mode_enqueues_without_smtp_or_public_issue(self):
+        from szhitch.models import HitchItem
+
+        class FakeBackend:
+            def __init__(self):
+                self.jobs = []
+
+            def enqueue(self, jobs):
+                self.jobs.extend(jobs)
+                return {"accepted": len(jobs), "skipped": 0}
+
+        mon = Monitor(
+            {**BASE_CFG, "notify": {"console": False}},
+            client=FakeClient([]), store=FakeStore(), notifiers=[], log=lambda *_: None,
+        )
+        mon.backend_mode = True
+        mon.control_plane = FakeBackend()
+        mon.scan_stamp = "20261026213000"
+        mon.subscriptions = [{
+            "__subscription_id": 7,
+            "name": "北京",
+            "pickup_cities": ["北京"],
+            "events": ["new"],
+        }]
+        item = HitchItem(hitch_id="9", model_name="轩逸", price=100,
+                         pickup_city="北京", return_city="上海")
+        mon._email_subscriptions([Event("new", item)], ScanStats(total=1))
+        self.assertEqual(len(mon.control_plane.jobs), 1)
+        job = mon.control_plane.jobs[0]
+        self.assertEqual(job["subscriptionId"], 7)
+        self.assertTrue(job["eventKey"].startswith("20261026213000:"))
+        self.assertEqual(job["payload"]["events"][0]["price"], 100)
 
     def test_email_only_goes_to_matching_subscription(self):
         from szhitch.models import HitchItem
@@ -556,20 +591,73 @@ class TestProxyPool(unittest.TestCase):
             self.assertIn("***", mask("http://u:p@2.2.2.2:3128"))
             self.assertNotIn("u:p", mask("http://u:p@2.2.2.2:3128"))
 
-    def test_city_from_payload_roundtrip(self):
+    def test_city_from_payload_preserves_original_rental_window(self):
         city = RentalCity("北京", "1")
-        city.deals[30] = parse_city_deals(
+        city.deals[7] = parse_city_deals(
             TestRentals._content("24", "120", 2011, "日产轩逸"),
-            city="北京", city_id="1", days=30,
+            city="北京", city_id="1", days=7,
         )[0]
-        apply_service_fees(city, fallback={2: 60})
-        pickup = datetime(2026, 10, 25, 10, tzinfo=timezone(timedelta(hours=8)))
-        payload = build_rental_payload([city], pickup_at=pickup, requested_cities=1)
+        original = datetime(2026, 10, 20, 10, tzinfo=timezone(timedelta(hours=8)))
+        payload = build_rental_payload([city], pickup_at=original, requested_cities=1)
         restored = city_from_payload(payload, "北京")
         self.assertIsNotNone(restored)
         self.assertTrue(restored.stale)
-        self.assertEqual(restored.deals[30][0].model, "日产轩逸")
-        self.assertEqual(restored.deals[30][0].total, city.deals[30][0].total)
+        self.assertEqual(restored.deals[7][0].model, "日产轩逸")
+        self.assertEqual(restored.period_meta[7]["pickupAt"], "2026-10-20 10:00")
+        self.assertEqual(restored.period_meta[7]["returnAt"], "2026-10-27 10:00")
+        later = datetime(2026, 11, 1, 10, tzinfo=timezone(timedelta(hours=8)))
+        copied = build_rental_payload([restored], pickup_at=later, requested_cities=1)
+        meta = copied["cities"][0]["periods"]["7"]
+        self.assertEqual(meta["pickupAt"], "2026-10-20 10:00")
+        self.assertEqual(meta["returnAt"], "2026-10-27 10:00")
+        self.assertTrue(meta["stale"])
+
+
+class TestRentalPriceEvidence(unittest.TestCase):
+    def test_price_calendar_fixture_matches_declared_total(self):
+        data = json.loads(
+            (Path(__file__).parent / "fixtures" / "rental" / "price_calendar_terms.json")
+            .read_text("utf-8")
+        )
+        for days in (7, 15, 30):
+            parsed = parse_price_calendar(data["terms"][str(days)]["content"], expected_days=days)
+            self.assertEqual(parsed.rent_term, days)
+            self.assertEqual(parsed.covered_days(), days)
+            self.assertEqual(sum(fen for _, fen in parsed.day_prices), parsed.total_fen)
+
+    def test_price_calendar_rejects_inconsistent_sum(self):
+        content = {
+            "rentStartDay": "2026-10-27",
+            "rentEndDay": "2026-10-28",
+            "rentTerm": "2",
+            "totalDailyPrice": "999",
+            "dayPrices": [
+                {"priceDate": "2026-10-27", "dayPrice": "148"},
+                {"priceDate": "2026-10-28", "dayPrice": "138"},
+            ],
+        }
+        with self.assertRaises(PriceContractError):
+            parse_price_calendar(content, expected_days=2)
+
+    def test_money_parser_uses_fen_without_truncation(self):
+        self.assertEqual(money_to_fen("24"), 2400)
+        self.assertEqual(money_to_fen("24.5"), 2450)
+        with self.assertRaises(PriceContractError):
+            money_to_fen("24.999")
+        with self.assertRaises(PriceContractError):
+            money_to_fen("-1")
+
+    def test_list_daily_never_becomes_calendar_total(self):
+        data = json.loads(
+            (Path(__file__).parent / "fixtures" / "rental" / "price_calendar_terms.json")
+            .read_text("utf-8")
+        )
+        reference = data.get("reference_choose_car") or {}
+        matched = reference.get("matched")
+        if matched:
+            daily = money_to_fen(matched["packagePrice"])
+            calendar = parse_price_calendar(data["terms"]["7"]["content"], expected_days=7)
+            self.assertNotEqual(daily * 7, calendar.total_fen)
 
 
 if __name__ == "__main__":

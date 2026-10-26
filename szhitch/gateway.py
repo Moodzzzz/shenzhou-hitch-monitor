@@ -33,8 +33,11 @@ DEFAULT_UA = (
 URI_HITCH_LIST = "/action/carrctapi/order/hitchList/v1"
 URI_HITCH_DETAIL = "/action/carrctapi/order/hitchDetail/v1"
 URI_CITY_LIST = "/action/carrctapi/order/cityList/v1"
-#: 普通租车选车（含周租/半月租/月租套餐价）。免登录，按城市 + 时间 + 坐标返回门店车型。
+#: 普通租车选车（含套餐日均参考价）。免登录，按城市 + 时间 + 坐标返回门店车型。
 URI_CHOOSE_CAR = "/resource/carrctapi/order/chooseCar/v3"
+#: 价格日历。参数必须是 city/dept/model/精确取还时间；免登录可读。
+URI_PRICE_CALENDAR = "/resource/carrctapi/order/chooseCarPriceCalendar/v1"
+#: 月租车型组起价。仅作历史兼容，不得再用于反推服务费或订单应付。
 URI_LONG_RENT_GROUPS = "/action/carrctapi/longRent/modelGroupsList/v1"
 
 # 服务端单页上限实测可到 200
@@ -156,6 +159,17 @@ class GatewayClient:
                 text = self._post(uri, params)
             except urllib.error.HTTPError as exc:
                 last_err = exc
+                body = ""
+                try:
+                    body = exc.read().decode("utf-8", "replace")[:400]
+                except Exception:
+                    pass
+                if exc.code == 422 and ("carwrm" in body or "<html" in body.lower()):
+                    # 风控 WAF 质询页（carwrm），不是参数契约问题
+                    raise GatewayError(
+                        "风控拦截(422 WAF 质询)，稍后或换出口再试",
+                        uri=uri, code=exc.code, raw=body[:160],
+                    ) from exc
                 if exc.code not in retryable or attempt == self.retries:
                     raise GatewayError(
                         f"HTTP {exc.code}", uri=uri, code=exc.code
@@ -325,6 +339,34 @@ class GatewayClient:
             },
         ) or {}
 
+    def choose_car_price_calendar(
+        self,
+        *,
+        pickup_city_id: str | int,
+        pickup_dept_id: str | int,
+        model_id: str | int,
+        pickup_time: str,
+        return_time: str,
+    ) -> dict[str, Any]:
+        """读取车型的价格日历。
+
+        参数契约来自 2026-10-26 对移动站真实请求的捕获：缺任一字段会
+        返回网关超时，不能用其它猜测参数代替。返回 content，不在此处
+        解释金额语义；调用方应交给 ``rental_pricing.parse_price_calendar``。
+        """
+        return self.call(
+            URI_PRICE_CALENDAR,
+            {
+                "allianceBusinessFlag": False,
+                "modelId": int(model_id),
+                "orderEntrance": 1,
+                "pickupCityId": int(pickup_city_id),
+                "pickupDate": str(pickup_time),
+                "pickupDeptId": int(pickup_dept_id),
+                "returnDate": str(return_time),
+            },
+        ) or {}
+
     def long_rent_groups(self, *, city_id: str | int) -> dict[str, Any]:
-        """官方长租（月租）车型组，``lowPrice`` 是当月起价，用于校准出行服务费。"""
+        """官方长租（月租）车型组起价；不得用于反推服务费或应付。"""
         return self.call(URI_LONG_RENT_GROUPS, {"cityId": str(city_id)}) or {}

@@ -1,0 +1,633 @@
+{
+  "captured_at": "2026-10-26T21:01:37+08:00",
+  "source": {
+    "endpoint": "/resource/carrctapi/order/chooseCarPriceCalendar/v1",
+    "kind": "live_sanitized",
+    "note": "uid removed; no cookies or account fields retained"
+  },
+  "condition": {
+    "pickupCityId": 1,
+    "pickupDeptId": 498,
+    "modelId": 1906,
+    "pickupDate": "2026-10-27 10:00"
+  },
+  "terms": {
+    "7": {
+      "request": {
+        "allianceBusinessFlag": false,
+        "modelId": 1906,
+        "orderEntrance": 1,
+        "pickupCityId": 1,
+        "pickupDate": "2026-10-27 10:00",
+        "pickupDeptId": 498,
+        "returnDate": "2026-11-03 10:00"
+      },
+      "code": 1,
+      "msg": "成功",
+      "content": {
+        "rentStartDay": "2026-10-27",
+        "totalDailyPrice": "1026",
+        "rentTermDesc": "租期${\"content\":\"7\"}天",
+        "rentTerm": "7",
+        "packagePrices": [
+          {
+            "priceDate": "2026-10-26",
+            "dayPrice": "148"
+          },
+          {
+            "priceDate": "2026-10-27",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-10-28",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-10-29",
+            "dayPrice": "97"
+          },
+          {
+            "priceDate": "2026-10-30",
+            "dayPrice": "95"
+          },
+          {
+            "priceDate": "2026-10-31",
+            "dayPrice": "89"
+          },
+          {
+            "priceDate": "2026-11-01",
+            "dayPrice": "69"
+          },
+          {
+            "priceDate": "2026-11-02",
+            "dayPrice": "69"
+          },
+          {
+            "priceDate": "2026-11-03",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-04",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-05",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-06",
+            "dayPrice": "158"
+          },
+          {
+            "priceDate": "2026-11-07",
+            "dayPrice": "178"
+          },
+          {
+            "priceDate": "2026-11-08",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-09",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-10",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-11",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-12",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-13",
+            "dayPrice": "158"
+          },
+          {
+            "priceDate": "2026-11-14",
+            "dayPrice": "178"
+          },
+          {
+            "priceDate": "2026-11-15",
+            "dayPrice": "138"
+          }
+        ],
+        "rentEndDay": "2026-11-02",
+        "dayPrices": [
+          {
+            "priceDate": "2026-10-26",
+            "dayPrice": "148"
+          },
+          {
+            "priceDate": "2026-10-27",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-10-28",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-10-29",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-10-30",
+            "dayPrice": "158"
+          },
+          {
+            "priceDate": "2026-10-31",
+            "dayPrice": "178"
+          },
+          {
+            "priceDate": "2026-11-01",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-02",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-03",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-04",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-05",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-06",
+            "dayPrice": "158"
+          },
+          {
+            "priceDate": "2026-11-07",
+            "dayPrice": "178"
+          },
+          {
+            "priceDate": "2026-11-08",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-09",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-10",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-11",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-12",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-13",
+            "dayPrice": "158"
+          },
+          {
+            "priceDate": "2026-11-14",
+            "dayPrice": "178"
+          },
+          {
+            "priceDate": "2026-11-15",
+            "dayPrice": "138"
+          }
+        ],
+        "totalPackagePrice": "695"
+      }
+    },
+    "15": {
+      "request": {
+        "allianceBusinessFlag": false,
+        "modelId": 1906,
+        "orderEntrance": 1,
+        "pickupCityId": 1,
+        "pickupDate": "2026-10-27 10:00",
+        "pickupDeptId": 498,
+        "returnDate": "2026-11-11 10:00"
+      },
+      "code": 1,
+      "msg": "成功",
+      "content": {
+        "rentStartDay": "2026-10-27",
+        "totalDailyPrice": "2190",
+        "rentTermDesc": "租期${\"content\":\"15\"}天",
+        "rentTerm": "15",
+        "packagePrices": [
+          {
+            "priceDate": "2026-10-27",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-10-28",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-10-29",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-10-30",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-10-31",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-11-01",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-11-02",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-11-03",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-04",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-05",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-06",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-07",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-08",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-09",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-10",
+            "dayPrice": "21"
+          }
+        ],
+        "rentEndDay": "2026-11-10",
+        "dayPrices": [
+          {
+            "priceDate": "2026-10-27",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-10-28",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-10-29",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-10-30",
+            "dayPrice": "158"
+          },
+          {
+            "priceDate": "2026-10-31",
+            "dayPrice": "178"
+          },
+          {
+            "priceDate": "2026-11-01",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-02",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-03",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-04",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-05",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-06",
+            "dayPrice": "158"
+          },
+          {
+            "priceDate": "2026-11-07",
+            "dayPrice": "178"
+          },
+          {
+            "priceDate": "2026-11-08",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-09",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-10",
+            "dayPrice": "138"
+          }
+        ],
+        "totalPackagePrice": "609"
+      }
+    },
+    "30": {
+      "request": {
+        "allianceBusinessFlag": false,
+        "modelId": 1906,
+        "orderEntrance": 1,
+        "pickupCityId": 1,
+        "pickupDate": "2026-10-27 10:00",
+        "pickupDeptId": 498,
+        "returnDate": "2026-11-26 10:00"
+      },
+      "code": 1,
+      "msg": "成功",
+      "content": {
+        "rentStartDay": "2026-10-27",
+        "totalDailyPrice": "4380",
+        "rentTermDesc": "租期${\"content\":\"30\"}天",
+        "rentTerm": "30",
+        "packagePrices": [
+          {
+            "priceDate": "2026-10-27",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-10-28",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-10-29",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-10-30",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-10-31",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-11-01",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-11-02",
+            "dayPrice": "63"
+          },
+          {
+            "priceDate": "2026-11-03",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-04",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-05",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-06",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-07",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-08",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-09",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-10",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-11",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-12",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-13",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-14",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-15",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-16",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-17",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-18",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-19",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-20",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-21",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-22",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-23",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-24",
+            "dayPrice": "21"
+          },
+          {
+            "priceDate": "2026-11-25",
+            "dayPrice": "21"
+          }
+        ],
+        "rentEndDay": "2026-11-25",
+        "dayPrices": [
+          {
+            "priceDate": "2026-10-27",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-10-28",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-10-29",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-10-30",
+            "dayPrice": "158"
+          },
+          {
+            "priceDate": "2026-10-31",
+            "dayPrice": "178"
+          },
+          {
+            "priceDate": "2026-11-01",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-02",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-03",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-04",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-05",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-06",
+            "dayPrice": "158"
+          },
+          {
+            "priceDate": "2026-11-07",
+            "dayPrice": "178"
+          },
+          {
+            "priceDate": "2026-11-08",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-09",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-10",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-11",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-12",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-13",
+            "dayPrice": "158"
+          },
+          {
+            "priceDate": "2026-11-14",
+            "dayPrice": "178"
+          },
+          {
+            "priceDate": "2026-11-15",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-16",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-17",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-18",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-19",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-20",
+            "dayPrice": "158"
+          },
+          {
+            "priceDate": "2026-11-21",
+            "dayPrice": "178"
+          },
+          {
+            "priceDate": "2026-11-22",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-23",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-24",
+            "dayPrice": "138"
+          },
+          {
+            "priceDate": "2026-11-25",
+            "dayPrice": "138"
+          }
+        ],
+        "totalPackagePrice": "924"
+      }
+    }
+  },
+  "reference_choose_car": {
+    "request": {
+      "pickupCityId": "1",
+      "pickupTime": "2026-10-27 10:00",
+      "returnCityId": "1",
+      "returnTime": "2026-11-03 10:00",
+      "entrance": 1,
+      "userChooseLat": "39.904030",
+      "userChooseLon": "116.407526",
+      "holidaysWaitingFlag": 0
+    },
+    "matched": null,
+    "note": "列表日均只作参考，不能乘天数生成套餐价"
+  }
+}

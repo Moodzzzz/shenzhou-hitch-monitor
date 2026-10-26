@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<meta name="color-scheme" content="dark">
-<meta name="theme-color" content="#08090c">
+<meta name="color-scheme" content="light">
+<meta name="theme-color" content="#f2ead9">
 <title>神州车价 · 顺风车与长租行情</title>
 <style>
   /* ============================================================
@@ -257,7 +257,7 @@
   .deal.great::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:2px;background:var(--rose);border-radius:0 2px 2px 0}
   .deal.good::before{content:"";position:absolute;left:0;top:9px;bottom:9px;width:2px;background:var(--amber);border-radius:0 2px 2px 0}
   .deal-city{min-width:0;display:flex;align-items:center;gap:9px}
-  .deal-pic{width:43px;height:34px;border-radius:6px;object-fit:cover;background:var(--panel-3);border:1px solid var(--line);flex:none}
+  .deal-pic{width:56px;height:38px;border-radius:6px;object-fit:contain;box-sizing:border-box;padding:2px 4px;background:linear-gradient(135deg,#f3e7d2,#e8d8bd);border:1px solid var(--line);flex:none}
   .deal-city .txt{min-width:0}
   .deal-city b{display:block;font-size:13.5px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .deal-city span{display:block;color:var(--dim);font-size:10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px}
@@ -416,6 +416,228 @@
   }
   @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
+<style>
+  /* ================================================================
+     奶油纸票据 × 调度验讫章
+     所有票据信息只服务一件事：把“参考价 / 日历核价 / 应付”分清。
+     ================================================================ */
+  :root{
+    --bg:#f2ead9;--panel:#fffaf0;--panel-2:#f8efde;--panel-3:#eee1c9;
+    --line:#d8c7a7;--line-2:#b6a07b;--text:#231c14;--text-2:#4b3f31;
+    --muted:#746651;--dim:#796c58;--amber:#c3511f;--amber-soft:#f7dfcb;--amber-line:#dfa984;
+    --jade:#2f6c56;--rose:#b23d37;--blue:#315f75;
+    --sans:"PingFang SC","HarmonyOS Sans SC","Microsoft YaHei UI","Microsoft YaHei",system-ui,sans-serif;
+    --serif:"Songti SC","STSong","Noto Serif SC","SimSun",serif;
+    --mono:"Bahnschrift","DIN Alternate","SF Mono","Cascadia Code","JetBrains Mono",ui-monospace,Consolas,monospace;
+    --r:2px;--r-lg:2px;--ease:cubic-bezier(.16,1,.3,1);
+  }
+  html,body{background:var(--bg);color:var(--text)}
+  body{
+    background-image:
+      repeating-linear-gradient(0deg,rgba(74,55,30,.035) 0,rgba(74,55,30,.035) 1px,transparent 1px,transparent 4px),
+      radial-gradient(900px 500px at 12% -10%,rgba(195,81,31,.11),transparent 65%),
+      radial-gradient(800px 500px at 95% 0,rgba(47,108,86,.05),transparent 60%);
+  }
+  ::selection{background:var(--text);color:var(--bg)}
+  button,input,select{color:var(--text);background:var(--panel-2);border-color:var(--line)}
+  button:hover{border-color:var(--line-2);background:var(--panel);color:var(--amber)}
+  input::placeholder{color:var(--dim)}
+  .shell{max-width:1440px;padding:0 30px 70px}
+  .topbar{max-width:1440px;padding:18px 30px 15px;border-bottom:1px solid var(--line-2)}
+  .brand h1{font-family:var(--serif);font-weight:700;letter-spacing:.06em}
+  .brand p{color:var(--muted)}
+  .mark{background:var(--text);border:1px solid var(--text);color:var(--bg);border-radius:50%;box-shadow:none}
+  .modes{border:1px solid var(--line-2);background:var(--panel);border-radius:2px;padding:2px}
+  .mode-btn{border-radius:0;color:var(--muted)}
+  .mode-btn small{color:var(--dim)}
+  .mode-btn.on{background:var(--text);color:var(--bg)}
+  .mode-btn.on small{color:#d6c9b8}
+  .sync{border-radius:0;border-color:var(--line-2);background:transparent}
+  .sync .dot{background:var(--jade)}
+  .eyebrow{color:var(--amber);letter-spacing:.24em}
+  .pagehead h2{font-family:var(--serif);font-weight:700;letter-spacing:-.02em}
+  .pagehead h2 em{color:var(--amber);font-style:normal}
+  .head-stat .v{color:var(--text)}
+  .head-stat .k{color:var(--muted)}
+  .board{border-color:var(--line-2)}
+  .fig{border-color:var(--line)}
+  .fig .v.amber,.fig .v.jade,.fig .v.rose{color:var(--text)}
+  .fig .v.amber{color:var(--amber)}
+  .rail,.rental-controls{background:rgba(242,234,217,.94);border-color:var(--line);box-shadow:0 10px 24px -20px rgba(50,35,15,.65)}
+  .seg,.cp-pop{background:var(--panel);border-color:var(--line-2)}
+  .cp-group{background:var(--panel);color:var(--amber)}
+  .chip{background:transparent;border-color:var(--line);border-radius:2px;color:var(--muted)}
+  .chip.on{background:var(--text);border-color:var(--text);color:var(--bg)}
+  .chip.on .n{color:#d8cbb9}
+  .rchip,.period,.mail-rule,.check,.mail-status,.panel{border-radius:2px}
+  .panel{background:rgba(255,250,240,.72);border-color:var(--line);box-shadow:none}
+  .panel h3{font-family:var(--mono);letter-spacing:.18em;color:var(--muted)}
+  .period{border-color:var(--line-2);background:transparent;border-radius:0;position:relative;padding:10px 16px 9px}
+  .period:after{content:"";position:absolute;left:6px;right:6px;bottom:4px;border-bottom:1px dotted var(--line-2)}
+  .period.on{background:var(--amber);border-color:var(--amber);color:#fff9ef}
+  .period.on small{color:#ffe4d2}
+  .rwindow{border-radius:0;border-color:var(--line-2);background:rgba(255,250,240,.55)}
+  .rwindow .arrow{color:var(--amber)}
+  .rthead{border-bottom:1px solid var(--line-2);color:var(--muted);letter-spacing:.16em}
+  .rthead,.deal{grid-template-columns:minmax(160px,1.12fr) minmax(170px,1.28fr) 92px 110px 98px 100px;gap:14px}
+  .rthead span:nth-child(n+3){text-align:left}
+  .rthead span:last-child{text-align:right}
+  .rrows{gap:7px}
+  .deal.ticket{
+    padding:14px 15px;border:1px solid var(--line);border-radius:0;
+    background:
+      linear-gradient(90deg,rgba(195,81,31,.055) 0 3px,transparent 3px),
+      repeating-linear-gradient(90deg,rgba(115,95,65,.035) 0,rgba(115,95,65,.035) 1px,transparent 1px,transparent 9px),
+      var(--panel);
+    box-shadow:0 2px 0 rgba(80,58,30,.05);
+  }
+  .deal.ticket:hover{background-color:#fffdf7;border-color:var(--line-2);transform:translateX(2px)}
+  .deal.great::before,.deal.good::before{display:none}
+  .deal.ticket:before{content:"ADMIT  ONE";position:absolute;right:14px;top:7px;font-family:var(--mono);font-size:8px;letter-spacing:.2em;color:#b9a88e;pointer-events:none}
+  .deal-city b,.deal-model b{font-family:var(--serif);font-weight:700}
+  .deal-city b{font-size:15px}
+  .deal-city span{color:var(--muted)}
+  .deal-city .range{color:var(--amber);letter-spacing:.02em}
+  .deal-model span{color:var(--muted)}
+  .list-note{color:var(--dim)!important;font-size:9px!important;letter-spacing:.05em}
+  .stamps{display:flex;gap:4px;margin-top:5px;flex-wrap:wrap}
+  .stamp{display:inline-block;font-family:var(--mono);font-size:8px;letter-spacing:.08em;padding:2px 5px;border:1px solid currentColor;transform:rotate(-1.5deg);white-space:nowrap}
+  .stamp.reference{color:var(--muted)}.stamp.calendar{color:var(--jade)}.stamp.order{color:var(--jade);font-weight:700}
+  .stamp.stale{color:var(--rose);transform:rotate(1.5deg)}.stamp.ok{color:var(--jade)}
+  .stamp.unknown{color:var(--dim)}
+  .deal-day,.deal-cal{text-align:left}
+  .deal-day b{font-size:22px;color:var(--text);font-family:var(--mono)}
+  .deal-day span{display:block;color:var(--muted);font-size:9px;margin:3px 0 0}
+  .deal-cal b{display:block;font-family:var(--mono);font-size:15px;color:var(--jade);font-weight:600}
+  .deal-cal b.pending{color:var(--dim);font-size:20px}
+  .deal-cal span{display:block;color:var(--muted);font-size:9px;margin-top:3px}
+  .deal-payable{text-align:left}
+  .deal-payable b{display:block;font-family:var(--serif);color:var(--rose);font-size:13px;letter-spacing:.08em}
+  .deal-payable span{display:block;color:var(--dim);font-size:9px;margin-top:3px}
+  .deal-save{align-items:flex-end}
+  .tag{border-radius:0;border-color:var(--line-2);color:var(--muted);background:transparent}
+  .tag.great{color:var(--rose);border-color:#d5a0a0;background:#f8e7e2}
+  .tag.good{color:var(--amber);border-color:var(--amber-line);background:var(--amber-soft)}
+  .tag.fair{color:var(--jade);border-color:#a9c2b8;background:#e9f1ed}
+  .deal-save s{color:var(--dim)}
+  .load-more{display:block;width:100%;margin:14px 0 0;padding:12px;border:1px dashed var(--line-2);background:transparent;border-radius:0;font-family:var(--mono);letter-spacing:.06em;color:var(--muted)}
+  .load-more:hover{background:var(--panel)}
+  .list-end{text-align:center;color:var(--dim);font-family:var(--mono);font-size:9px;letter-spacing:.18em;padding:18px 0 4px}
+  .rlead .lrow{border-bottom-style:dotted}
+  .lprice{color:var(--amber)}
+  .lrow .lsave{color:var(--rose)}
+  .foot{border-top:1px solid var(--line-2);color:var(--muted)}
+  .drawer{background:var(--bg);border-left:1px solid var(--line-2);box-shadow:-30px 0 60px rgba(65,45,20,.18)}
+  .drawer-head{background:rgba(242,234,217,.96)}
+  .drawer-head h2{font-family:var(--serif)}
+  .drawer-head p,.privacy,.step p,.hint{color:var(--muted)}
+  .step{border-bottom-style:dotted}
+  .stepno{border-radius:50%;background:var(--text);border-color:var(--text);color:var(--bg)}
+  .primary{background:var(--text);border-color:var(--text);color:var(--bg);border-radius:0}
+  .primary:hover{background:var(--amber);border-color:var(--amber);color:#fff}
+  .mail-cta{background:var(--amber-soft);border-color:var(--amber-line)}
+  .mail-cta h3{color:var(--amber)}
+  .mail-cta .go{background:var(--amber);border-color:var(--amber);color:#fff;border-radius:0}
+  .toast{background:var(--text);border-color:var(--text);color:var(--bg);border-radius:0}
+  .err{background:#f8e3dc;border-color:#d6a092;color:#7c2e25}
+  .err code{background:#fff3ed;color:#6d2a20}
+  .skeleton{background:linear-gradient(90deg,#e8dcc7 25%,#f8efde 37%,#e8dcc7 63%);background-size:400% 100%;border-radius:0}
+  .empty{border-radius:0;border-color:var(--line-2);color:var(--muted)}
+  .empty code{background:var(--panel-3);color:var(--text-2)}
+  /* 顺风车：App 式选车卡片 */
+  .trip-rail{padding:12px 0 10px}
+  .trip-main{gap:10px}
+  .trip-arrow{color:var(--amber);font-family:var(--mono);font-size:16px}
+  .trip-secondary{padding-top:2px}
+  .filter-more{margin-top:2px;border-top:1px dashed var(--line)}
+  .filter-more summary{cursor:pointer;list-style:none;padding:8px 0 2px;color:var(--muted);font-size:11px;font-family:var(--mono);letter-spacing:.04em}
+  .filter-more summary::-webkit-details-marker{display:none}
+  .filter-more summary:before{content:"＋ ";color:var(--amber)}
+  .filter-more[open] summary:before{content:"－ "}
+  .filter-more-body{padding:5px 0 2px;display:flex;flex-direction:column;gap:7px}
+  .featured-wrap{margin:20px 0 26px}
+  .feed-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin:0 0 12px}
+  .feed-head h3{font-family:var(--serif);font-size:22px;line-height:1.2;margin:3px 0 0}
+  .feed-head>span{font-family:var(--mono);font-size:10px;color:var(--muted);text-align:right}
+  .featured-rail{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(280px,1fr);gap:10px;overflow-x:auto;padding:1px 1px 10px;scroll-snap-type:x mandatory;scrollbar-width:thin}
+  .featured-rail::-webkit-scrollbar{height:6px}
+  .app-layout{grid-template-columns:minmax(0,1fr) 316px;gap:28px}
+  .route-feed-head{margin-bottom:15px;border-bottom:1px solid var(--line-2);padding-bottom:9px}
+  .route-feed{display:flex;flex-direction:column;gap:25px}
+  .route-group{border-top:1px solid var(--line-2);padding-top:12px}
+  .route-group-head{display:flex;align-items:center;gap:12px;margin-bottom:10px}
+  .route-group-title{font-family:var(--serif);font-size:18px;font-weight:700;letter-spacing:.02em}
+  .route-group-title em{font-style:normal;color:var(--amber);margin:0 7px}
+  .route-group-meta{margin-left:auto;color:var(--muted);font-family:var(--mono);font-size:10px;white-space:nowrap}
+  .route-group-more{border:1px solid var(--line);background:transparent;padding:5px 8px;font-size:10px;color:var(--muted);white-space:nowrap}
+  .car-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+  .featured-rail .car-card{min-width:280px;scroll-snap-align:start}
+  .car-card{
+    display:grid;grid-template-columns:126px minmax(0,1fr);min-height:128px;background:var(--panel);
+    border:1px solid var(--line);position:relative;overflow:hidden;padding:0;transition:.18s var(--ease);
+  }
+  .car-card:hover{border-color:var(--line-2);transform:translateY(-2px);box-shadow:0 12px 22px -20px rgba(53,36,14,.65)}
+  .car-card.hit{border-color:var(--amber-line)}
+  .car-card.hit:after{content:"★";position:absolute;right:8px;top:6px;color:var(--amber);font-size:12px}
+  .car-card.locked{opacity:.62}
+  .car-photo{position:relative;min-height:100%;background:
+    radial-gradient(120% 90% at 50% 100%,#f3e7d2 0%,#efe0c8 55%,#e8d8bd 100%);
+    display:flex;align-items:center;justify-content:center;overflow:hidden;border-right:1px dotted var(--line-2)}
+  .car-photo:after{content:"";position:absolute;left:14px;right:14px;bottom:12px;height:5px;border-radius:50%;
+    background:radial-gradient(50% 100% at 50% 50%,rgba(83,60,25,.22),transparent 70%);pointer-events:none}
+  .car-photo img{width:100%;height:100%;object-fit:contain;display:block;box-sizing:border-box;padding:14px 9px 16px;
+    position:relative;z-index:1;filter:drop-shadow(0 5px 5px rgba(83,60,25,.16))}
+  .car-photo:before{content:"CAR / 待上传";position:absolute;font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#a8977f}
+  .car-photo.hasimg:before{display:none}
+  .car-card.locked .car-photo img{filter:grayscale(1)}
+  .car-body{padding:12px 13px 11px;display:flex;flex-direction:column;min-width:0}
+  .car-kicker{display:flex;align-items:center;gap:6px;min-width:0}
+  .car-route{font-family:var(--mono);font-size:10px;color:var(--amber);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .car-days{font-family:var(--mono);font-size:9px;color:var(--muted);white-space:nowrap}
+  .car-name{font-family:var(--serif);font-weight:700;font-size:17px;line-height:1.25;margin:6px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .car-desc{font-size:10px;color:var(--muted);line-height:1.5;margin:3px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .car-dates{font-family:var(--mono);font-size:10px;color:var(--text-2);margin-top:7px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .car-dept{font-size:9px;color:var(--dim);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .car-bottom{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:auto;padding-top:8px}
+  .car-price{font-family:var(--mono);font-size:23px;font-weight:650;letter-spacing:-.05em;line-height:1;color:var(--text)}
+  .car-price small{font-family:var(--sans);font-size:9px;font-weight:400;color:var(--muted);letter-spacing:0;margin-left:2px}
+  .car-perday{font-family:var(--mono);font-size:9px;color:var(--muted);margin-left:5px}
+  .car-badge{font-family:var(--mono);font-size:8px;padding:3px 5px;border:1px solid var(--line-2);color:var(--muted);white-space:nowrap}
+  .car-badge.available{color:var(--jade);border-color:#a7c0b4}
+  .car-badge.locked{color:var(--red,#b23d37);border-color:#d6a6a1}
+  .car-badge.special{color:var(--amber);border-color:var(--amber-line)}
+  .route-empty{padding:35px 20px;text-align:center;border:1px dashed var(--line-2);color:var(--muted);font-size:12px}
+  .feed-more{display:block;width:100%;border:1px dashed var(--line-2);background:transparent;padding:13px;margin-top:2px;font-family:var(--mono);font-size:10px;letter-spacing:.05em;color:var(--muted)}
+  .feed-more:hover{background:var(--panel)}
+  @media(max-width:1180px){.rthead,.deal{grid-template-columns:minmax(150px,1.1fr) minmax(160px,1.2fr) 86px 104px 94px 92px}.shell{padding:0 22px 64px}.car-grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:900px){.app-layout{grid-template-columns:1fr}.featured-rail{grid-auto-columns:minmax(260px,78vw)}.car-grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:700px){
+    .car-grid{grid-template-columns:1fr}.car-card{grid-template-columns:112px minmax(0,1fr);min-height:120px}
+    .featured-rail{grid-auto-columns:86vw}.featured-rail .car-card{min-width:0}
+    .trip-main .field label{display:none}.trip-main{gap:7px}.trip-arrow{display:none}
+    .feed-head h3{font-size:19px}.featured-wrap{margin-top:14px}
+    .route-group-head{gap:8px}.route-group-title{font-size:16px}.route-group-meta{font-size:9px}
+  }
+  @media(max-width:900px){
+    .rthead,.deal{grid-template-columns:minmax(140px,1.1fr) minmax(150px,1.2fr) 84px 104px}
+    .rthead span:nth-child(5),.rthead span:nth-child(6),.deal-payable,.deal-save{display:none}
+    .deal.ticket:before{display:none}
+  }
+  @media(max-width:700px){
+    .shell{padding:0 13px 58px}.topbar{padding:13px 13px 11px}
+    .rail,.rental-controls{background:transparent}
+    .deal.ticket{grid-template-columns:minmax(0,1fr) 112px;gap:7px 10px;padding:13px 12px}
+    .deal-city{grid-column:1;grid-row:1}.deal-model{grid-column:1;grid-row:2}
+    .deal-day{grid-column:2;grid-row:1;text-align:right}
+    .deal-cal{grid-column:2;grid-row:2;text-align:right;align-self:start}
+    .deal-day b{font-size:20px}.deal-cal b{font-size:14px}
+    .deal-payable,.deal-save{display:none}
+    .stamps{margin-top:4px}
+    .cp-pop{width:min(352px,calc(100vw - 26px))}
+    .pagehead h2{font-family:var(--serif)}
+  }
+  @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
 </head>
 <body>
 <header class="topbar">
@@ -428,11 +650,12 @@
   </div>
   <nav class="modes" aria-label="行情类型">
     <button class="mode-btn on" data-mode="hitch">顺风车<small>REPOSITION</small></button>
-    <button class="mode-btn" data-mode="rental">长租好价<small>LONG STAY</small></button>
+    <button class="mode-btn" data-mode="rental">长租票版<small>FARE TAPE</small></button>
   </nav>
   <div class="top-actions">
     <div class="sync" id="syncState"><span class="dot"></span><span id="syncText">读取数据中</span></div>
     <button class="icon-btn mail-open" id="mailOpen"><span class="badge"></span>邮件提醒</button>
+    <a class="icon-btn" id="adminLink" href="#" hidden style="display:none">管理</a>
     <button class="icon-btn" id="reload" title="立即重新读取数据">刷新</button>
   </div>
 </header>
@@ -455,16 +678,12 @@
 
     <section class="board" id="board"></section>
 
-    <section class="rail">
-      <div class="frow">
+    <section class="rail trip-rail">
+      <div class="frow trip-main">
         <div class="field"><label>取车</label><div class="cp" id="fromPicker"></div></div>
+        <span class="trip-arrow">→</span>
         <div class="field"><label>还车</label><div class="cp" id="toPicker"></div></div>
-        <div class="field"><label>总价≤</label><input id="maxp" type="number" min="0" step="50" style="width:78px" placeholder="不限"></div>
-        <div class="seg" id="statusSeg">
-          <button data-v="all" class="on">全部</button>
-          <button data-v="available">可预订</button>
-          <button data-v="locked">被锁定</button>
-        </div>
+        <div class="field"><label>总价≤</label><input id="maxp" type="number" min="0" step="50" style="width:76px" placeholder="不限"></div>
         <div class="field"><label>排序</label>
           <select id="sort">
             <option value="price">总价最低</option>
@@ -477,24 +696,41 @@
         <div class="spacer"></div>
         <span class="lbl" id="count">—</span>
       </div>
-      <div class="frow">
-        <span class="lbl">品牌</span>
-        <div class="chips" id="brandChips"></div>
-        <button class="ghost" id="brandClear">清空</button>
-      </div>
-      <div class="frow">
-        <div class="field"><label>车型</label><input id="q" placeholder="车系关键词，如 帕萨特" autocomplete="off"></div>
+      <div class="frow trip-secondary">
         <div class="routebar" id="routeBar"></div>
         <div class="spacer"></div>
         <button class="ghost" id="onlyWatch">☆ 只看关注</button>
         <button class="ghost" id="reset">重置</button>
       </div>
+      <details class="filter-more">
+        <summary>更多筛选 · 品牌 / 车型 / 状态</summary>
+        <div class="filter-more-body">
+          <div class="frow">
+            <span class="lbl">品牌</span>
+            <div class="chips" id="brandChips"></div>
+            <button class="ghost" id="brandClear">清空</button>
+          </div>
+          <div class="frow">
+            <div class="field"><label>车型</label><input id="q" placeholder="车系关键词，如 帕萨特" autocomplete="off"></div>
+            <div class="seg" id="statusSeg">
+              <button data-v="all" class="on">全部</button>
+              <button data-v="available">可预订</button>
+              <button data-v="locked">被锁定</button>
+            </div>
+          </div>
+        </div>
+      </details>
     </section>
 
-    <div class="layout">
+    <section class="featured-wrap" id="featuredWrap">
+      <header class="feed-head"><div><p class="eyebrow">PICK OF THE DAY / 今日顺路</p><h3>先看这几辆值得出发的</h3></div><span id="featuredMeta"></span></header>
+      <div class="featured-rail" id="featured"></div>
+    </section>
+
+    <div class="layout app-layout">
       <main>
-        <div class="thead"><span>路线</span><span>车型</span><span>取车 → 还车</span><span style="text-align:right">总价</span></div>
-        <div class="rows" id="list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
+        <header class="feed-head route-feed-head"><div><p class="eyebrow">ROUTE BY ROUTE</p><h3>按路线挑车</h3></div><span id="feedMeta"></span></header>
+        <div class="route-feed" id="list"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
       </main>
       <aside>
         <div class="panel mail-cta">
@@ -521,13 +757,13 @@
   <section class="view" id="rentalView" hidden>
     <header class="pagehead rental-head">
       <div>
-        <p class="eyebrow">LONG STAY / 城市长租行情</p>
-        <h2>周租、半月、月租<br><em>哪座城市最便宜</em></h2>
-        <p class="sub">全国 471 城 × 全车型，7 / 15 / 30 天各自抓套餐价。<b>日均与套餐价和 App 选车页同口径</b>——周租、半月租、月租都有优惠，租得越久越便宜；出行服务费另计，只在「全包约」里给参考。</p>
+        <p class="eyebrow">FARE TAPE / 长租票版</p>
+        <h2>周租、半月、月租<br><em>先核价，再看低价</em></h2>
+        <p class="sub">全国 471 城 × 全车型，7 / 15 / 30 天分开取数。列表日均只负责找候选；<b>价格日历逐日合计单独盖章，订单应付留到登录后的费用明细核验</b>。没有证据的金额不补零、不估算。</p>
       </div>
       <div class="head-stat">
         <div class="v"><span id="rentalHeroMin">—</span><small>元/天</small></div>
-        <div class="k">当前租期最低日租</div>
+        <div class="k">最低列表参考日均</div>
       </div>
     </header>
 
@@ -547,9 +783,9 @@
         <div class="field"><label>车型</label><input id="rq" placeholder="车系关键词，如 轩逸 / 朗逸" autocomplete="off"></div>
         <div class="field"><label>排序</label>
           <select id="rSort">
-            <option value="daily">日均最低</option>
-            <option value="total">总价最低</option>
-            <option value="save">折扣最大</option>
+            <option value="daily">列表参考日均最低</option>
+            <option value="calendar">日历核价日均最低</option>
+            <option value="save">门市折扣最大</option>
           </select>
         </div>
         <div class="spacer"></div>
@@ -561,22 +797,22 @@
 
     <div class="rlayout">
       <main>
-        <div class="rthead"><span>城市 / 取车点</span><span>车型</span><span>日均全包</span><span style="text-align:right">租金 + 服务费</span><span style="text-align:right">门市对比</span></div>
+        <div class="rthead"><span>城市 / 取车点</span><span>车型 / 租期</span><span>列表日均</span><span>日历合计</span><span>订单应付</span><span style="text-align:right">门市</span></div>
         <div class="rrows" id="rentalList"><div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div></div>
       </main>
       <aside>
         <div class="panel">
-          <h3>最低全包日均 <span class="num" id="leadDays">7 天</span></h3>
+          <h3>最低列表日均 <span class="num" id="leadDays">7 天</span></h3>
           <div class="rlead" id="leadDaily"></div>
-          <div class="rnote">按当前租期与城市样本排序，点击城市可切换查看。</div>
+          <div class="rnote">按当前租期的<b>列表参考日均</b>排序；它不是套餐合计，更不是应付。</div>
         </div>
         <div class="panel">
-          <h3>折扣最狠</h3>
+          <h3>门市折扣线索</h3>
           <div class="rlead" id="leadSave"></div>
-          <div class="rnote">对比接口返回的门市日价；不含服务费、整备费。</div>
+          <div class="rnote">仅对比列表日均与门市日租，用来发现候选，不参与订单金额计算。</div>
         </div>
         <div class="panel">
-          <h3>口径说明</h3>
+          <h3>价格证据</h3>
           <div class="rnote" id="rentalNote"></div>
         </div>
       </aside>
@@ -603,8 +839,8 @@
       <span class="stepno">01</span>
       <div class="step-body">
         <h3>接收邮箱</h3>
-        <p>可留空：订阅会通过 GitHub Issue 回执提醒你。填写后会写入 Issue，公开仓库中可见。</p>
-        <input id="subEmail" type="email" placeholder="name@example.com（可选）" autocomplete="email">
+        <p>只发送一次验证邮件，确认后才会启用。邮箱不会写进公开 Issue，也不会出现在公开 JSON。</p>
+        <input id="subEmail" type="email" placeholder="name@example.com" autocomplete="email">
       </div>
     </div>
 
@@ -623,13 +859,11 @@
     </div>
 
     <div class="mail-status" id="mailStatus"></div>
-    <button class="primary" id="createSub">生成订阅 · 打开 GitHub</button>
-    <p class="privacy" id="mailPrivacy">静态看板没有服务器：订阅会存成仓库里的一个 Issue，<b>开启即订阅，关闭即退订</b>。GitHub 会在 Issue 下回执，你也能收到邮件。</p>
-
-    <div id="remoteSubs"></div>
+    <button class="primary" id="createSub" disabled>发送验证邮件</button>
+    <p class="privacy" id="mailPrivacy">私有后台尚未连接时不会收集邮箱。连接后必须先点邮件里的确认链接，才会开始推送；每封提醒都带独立退订入口。</p>
 
     <details>
-      <summary>已生效的订阅条件</summary>
+      <summary>当前生效的本地条件</summary>
       <div id="watchProfiles"></div>
     </details>
 
@@ -643,12 +877,11 @@
     </details>
 
     <details>
-      <summary>如何让邮箱直接收到信（仓库主）</summary>
+      <summary>隐私与投递说明</summary>
       <div class="hint">
-        在 GitHub 仓库 Settings → Secrets and variables → Actions 添加
-        <code>SZHITCH_SMTP_HOST</code>、<code>SZHITCH_SMTP_PORT</code>、<code>SZHITCH_SMTP_USER</code>、
-        <code>SZHITCH_SMTP_PASS</code>（授权码）、<code>SZHITCH_SMTP_TO</code>。
-        配好后，订阅里填的邮箱会按各自规则单独发送，不会互相串信。
+        邮箱只保存在私有控制面的数据库中，验证前不会发提醒；公开 JSON 不包含邮箱、订阅规则或令牌。
+        每封提醒都有管理/退订入口，后台会记录发送失败并退避重试。
+        当前页面若显示“私有后台未连接”，说明管理员尚未配置 API 地址，此时不会收集邮箱。
       </div>
     </details>
   </div>
@@ -704,6 +937,12 @@ let toPicker = null;
 const RENTAL_CITY_MAP = new Map();
 const RENTAL_BY_ID = new Map();
 let RENTAL_DECODED = [];
+let rentalShown = 120;
+let CONTROL_PLANE = { enabled: false, apiBase: "" };
+let hitchRouteShown = 6;
+let hitchFeaturedShown = 6;
+let lastHitchFilterSig = "";
+const hitchExpandedRoutes = new Set();
 
 const state = {
   mode: "hitch",
@@ -852,6 +1091,26 @@ function setSync(loadingNow){
   }
 }
 
+async function loadRentalData(manual = false){
+  // 长租体积约 1.5MB：进入长租票版或手动刷新时才下载。
+  const stamp = String(DATA?.rental_updated_at || "");
+  if(!manual && RENTAL && !(stamp && stamp !== String(RENTAL.generated_at || ""))) return;
+  try{
+    const res = await fetchJSON("rental.json");
+    if(res && res.v === 3 && Array.isArray(res.deals)){
+      RENTAL = res;
+      decodeRental();
+      renderRentalAll();
+    }else if(res && res.v === 2){
+      toast("旧版长租价已停用：等待 v3 重新抓取，避免继续展示推算价");
+    }else{
+      toast("长租产物格式不受支持");
+    }
+  }catch(err){
+    if(manual || !RENTAL) toast("长租行情还没生成");
+  }
+}
+
 async function loadAll(manual = false){
   if(loading) return;
   loading = true;
@@ -873,22 +1132,7 @@ async function loadAll(manual = false){
     $("#list").innerHTML = "";
   }
 
-  // 长租行情一天只更新一次，体积又比顺风车大得多：
-  // 只有 dashboard.json 里的版本戳变了（或手动刷新）才重新下载。
-  const stamp = String(DATA?.rental_updated_at || "");
-  const needRental = manual || !RENTAL || (stamp && stamp !== String(RENTAL.generated_at || ""));
-  if(needRental){
-    try{
-      const res = await fetchJSON("rental.json");
-      if(res && Array.isArray(res.deals)){
-        RENTAL = res;
-        decodeRental();
-        renderRentalAll();
-      }
-    }catch(err){
-      if(manual && !RENTAL) toast("长租行情还没生成");
-    }
-  }
+  if(state.mode === "rental" || manual) await loadRentalData(manual);
 
   loading = false;
   nextRefresh = 60;
@@ -897,31 +1141,49 @@ async function loadAll(manual = false){
   if(manual) toast("已重新读取最新数据");
 }
 
-/* 长租产物是紧凑格式：车型/门店字典 + 数组行，这里展开成好读的对象
-   行序：[城市ID, 车型ID, 天数, 租金日价, 服务费日价, 门市日价, 总价, 门店序号] */
+/* v3 紧凑报价行：
+   0城市 1车型 2天数 3列表日均分 4门市日价分 5日历合计分 6门店序号
+   7门店ID 8证据码 9是否陈旧 */
+const EVIDENCE_LABEL = {
+  0: "旧版未知",
+  1: "列表参考",
+  2: "日历已核",
+  3: "订单已核",
+};
+const EVIDENCE_TONE = {0:"unknown", 1:"reference", 2:"calendar", 3:"order"};
 function expandDeal(d){
-  if(!RENTAL || RENTAL.v !== 2 || !Array.isArray(d)) return d;
-  const [cid, mid, days, rent, fee, std, total, di] = d;
+  if(!RENTAL || RENTAL.v !== 3 || !Array.isArray(d)) return d;
+  const [cid, mid, days, listFen, stdFen, calFen, di, deptId, evCode, staleFlag] = d;
   const city = RENTAL_BY_ID.get(String(cid)) || {};
   const meta = (RENTAL.models || {})[String(mid)] || [];
   const span = Number(days) || 1;
-  // 与 App 一致：套餐价 total 只含租金，日均 = 套餐价 / 天数
-  const rentTotal = Number(total) || 0;
-  const serviceTotal = Math.round((Number(fee) || 0) * span);
-  const allInTotal = rentTotal + serviceTotal;
-  const saveBase = (Number(std) || Number(rent) || 0) * span;
-  const save = saveBase > 0 ? Math.max(0, Math.round((1 - rentTotal / saveBase) * 100)) : 0;
+  const period = (city.periods || {})[String(days)] || {};
+  const listFenValue = Number(listFen) || 0;
+  const stdFenValue = Number(stdFen) || 0;
+  const calFenValue = calFen == null || calFen === "" ? null : Number(calFen);
+  const listDaily = listFenValue / 100;
+  const standardDaily = stdFenValue / 100;
+  const save = standardDaily > 0 ? Math.max(0, Math.round((1 - listDaily / standardDaily) * 100)) : 0;
+  const evidenceCode = Number(evCode) || 0;
   return {
-    city: city.name || "", cityId: String(cid), days: Number(days),
+    city: city.name || "", cityId: String(cid), days: span,
     modelId: mid, model: meta[0] || "车型", brand: meta[1] || "",
     series: meta[2] || "", desc: meta[3] || "", pic: meta[4] || "",
     dept: (city.deptNames || [])[Number(di) || 0] || "",
+    deptId: String(deptId || ""),
     distance: "",
-    rentDaily: Number(rent) || 0, serviceDaily: Number(fee) || 0,
-    daily: Math.round((rentTotal / span) * 10) / 10,
-    standardDaily: Number(std) || Number(rent) || 0,
-    rentTotal, serviceTotal, total: rentTotal,
-    allInTotal, allInDaily: Math.round((allInTotal / span) * 10) / 10,
+    listDaily, standardDaily,
+    daily: listDaily,
+    listTotal: Math.round(listDaily * span * 100) / 100,
+    calendarTotal: calFenValue == null ? null : Math.round(calFenValue) / 100,
+    calendarDaily: calFenValue == null ? null : Math.round(calFenValue / span) / 100,
+    evidence: EVIDENCE_LABEL[evidenceCode] || "旧版未知",
+    evidenceTone: EVIDENCE_TONE[evidenceCode] || "unknown",
+    stale: Boolean(Number(staleFlag)),
+    staleSource: period.stale === true,
+    pickupAt: period.pickupAt || RENTAL.pickup_at || "",
+    returnAt: period.returnAt || "",
+    priceGeneratedAt: period.priceGeneratedAt || "",
     save, tier: save >= 50 ? "great" : save >= 30 ? "good" : save >= 15 ? "fair" : "normal",
   };
 }
@@ -1043,31 +1305,103 @@ function hitchFiltered(){
   return arr.sort(by);
 }
 
+function carCard(it, index, featured = false){
+  const locked = it.status === "locked";
+  const dates = it.begin ? `${esc(it.begin.slice(5))} → ${esc((it.end || "").slice(5))}` : "日期待定";
+  const days = it.days ? `${it.days} 天` : "";
+  const perday = it.days ? Math.round(it.price / it.days) : null;
+  const note = it.deptFrom || it.deptTo
+    ? `${it.deptFrom || it.from} → ${it.deptTo || it.to}`
+    : (it.desc || `${it.brand || ""} ${it.series || ""}`.trim());
+  const special = !locked && Number(it.price) <= 100;
+  const badge = locked
+    ? `<span class="car-badge locked">已锁定</span>`
+    : special
+      ? `<span class="car-badge special">${it.price <= 1 ? "1 元票" : "特价"}</span>`
+      : `<span class="car-badge available">可预订</span>`;
+  return `<article class="car-card ${it.hit ? "hit" : ""} ${locked ? "locked" : ""} ${featured ? "featured" : ""}" style="animation-delay:${Math.min(index, 12) * 16}ms" title="${esc(it.model)} · ${esc(note)}">
+    <div class="car-photo ${it.pic ? "hasimg" : ""}">
+      ${it.pic ? `<img src="${esc(it.pic)}" alt="${esc(it.model)}" loading="lazy" referrerpolicy="no-referrer" onload="this.parentNode.classList.add('hasimg')" onerror="this.parentNode.classList.remove('hasimg');this.remove()">` : ""}
+    </div>
+    <div class="car-body">
+      <div class="car-kicker"><span class="car-route">${esc(it.from)} → ${esc(it.to)}</span><span class="car-days">${days}</span></div>
+      <h3 class="car-name">${esc(it.model)}</h3>
+      <p class="car-desc">${esc(it.desc || `${it.brand || ""} ${it.series || ""}`.trim())}</p>
+      <div class="car-dates">${dates}</div>
+      <div class="car-dept">${esc(note)}</div>
+      <div class="car-bottom">
+        <div><span class="car-price">¥${money(it.price)}</span><span class="car-perday">${perday ? `≈${perday}/天` : ""}</span></div>
+        ${badge}
+      </div>
+    </div>
+  </article>`;
+}
+
+function renderFeatured(arr){
+  const box = $("#featured");
+  if(!box) return;
+  const picks = [...arr].sort((a,b) => {
+    const ad = (a.price || 0) / (a.days || 1), bd = (b.price || 0) / (b.days || 1);
+    return ad - bd || (a.price || 0) - (b.price || 0);
+  }).slice(0, hitchFeaturedShown);
+  $("#featuredMeta").textContent = picks.length ? `按日均挑选 · ${picks.length} 辆` : "暂无符合条件的车";
+  box.innerHTML = picks.map((it, i) => carCard(it, i, true)).join("") ||
+    `<div class="route-empty">换一个城市或放宽价格，马上给你挑车。</div>`;
+}
+
 function renderList(){
   if(!DATA) return;
   const arr = hitchFiltered();
-  $("#count").textContent = `${fmt(arr.length)} / ${fmt((DATA.listings || []).length)} 条`;
+  const sig = JSON.stringify([state.from, state.to, state.q, state.maxp, state.status, [...state.brands], state.onlyWatch, state.sort]);
+  if(sig !== lastHitchFilterSig){
+    lastHitchFilterSig = sig;
+    hitchRouteShown = 6;
+    hitchExpandedRoutes.clear();
+  }
+  $("#count").textContent = `${fmt(arr.length)} 辆`;
   $("#heroMin").textContent = DATA.totals?.min_per_day ?? "—";
+  renderFeatured(arr);
   if(!arr.length){
-    $("#list").innerHTML = `<div class="empty">没有符合条件的顺风车 —— 放宽价格或清空品牌筛选试试。</div>`;
+    $("#feedMeta").textContent = "0 条路线";
+    $("#list").innerHTML = `<div class="route-empty">没有符合条件的顺风车 —— 放宽价格或清空品牌筛选试试。</div>`;
     return;
   }
-  const LIMIT = 500;
-  $("#list").innerHTML = arr.slice(0, LIMIT).map((it, i) => {
-    const locked = it.status === "locked";
-    const dates = it.begin ? `${esc(it.begin.slice(5))} → ${esc((it.end || "").slice(5))}` : "日期待定";
-    const days = it.days ? `${it.days} 天` : (it.desc ? esc(it.desc) : "");
-    const dept = it.deptFrom || it.deptTo ? `${it.deptFrom || it.from} → ${it.deptTo || it.to}` : "";
-    const norm = `${it.brand || ""}${it.series || ""}`;
-    const note = dept || ((it.brand && norm && !String(it.model || "").replace(/\s/g, "").includes(norm)) ? norm : "");
-    const perday = it.days ? Math.round(it.price / it.days) : null;
-    return `<article class="hrow ${it.hit ? "hit" : ""} ${locked ? "locked" : ""}" style="animation-delay:${Math.min(i, 12) * 13}ms" title="${esc(it.model)} · ${esc(note)}">
-      <div class="route"><span class="city">${esc(it.from)}</span><span class="track" aria-hidden="true"></span><span class="city">${esc(it.to)}</span></div>
-      <div class="model"><span class="m">${esc(it.model)}</span><span class="b">${esc(note)}${locked ? (note ? " · " : "") + "已被锁定" : ""}</span></div>
-      <div class="when"><span class="d">${dates}</span><span class="t">${days}</span></div>
-      <div class="price"><div class="main"><b>${money(it.price)}</b><span class="u">元</span>${it.orig && it.orig > it.price ? `<s>${fmt(it.orig)}</s>` : ""}</div><span class="pd">${perday ? `≈ ${perday} 元/天` : ""}</span></div>
-    </article>`;
-  }).join("") + (arr.length > LIMIT ? `<div class="empty">仅显示前 ${LIMIT} 条，请用筛选缩小范围</div>` : "");
+  const groups = new Map();
+  for(const it of arr){
+    const key = `${it.from}→${it.to}`;
+    if(!groups.has(key)) groups.set(key, { from: it.from, to: it.to, cars: [] });
+    groups.get(key).cars.push(it);
+  }
+  const groupList = [...groups.values()];
+  const filtering = Boolean(state.from || state.to || state.q || state.maxp || state.brands.size || state.onlyWatch);
+  const shown = filtering ? groupList.length : Math.min(groupList.length, hitchRouteShown);
+  $("#feedMeta").textContent = `${fmt(groupList.length)} 条路线 · ${fmt(arr.length)} 辆车 · 先展示 ${shown} 条路线`;
+  const sections = groupList.slice(0, shown).map((g, gi) => {
+    const key = `${g.from}→${g.to}`;
+    const expanded = hitchExpandedRoutes.has(key) || filtering;
+    const cars = expanded ? g.cars : g.cars.slice(0, 3);
+    const more = g.cars.length - cars.length;
+    return `<section class="route-group" style="animation-delay:${Math.min(gi, 8) * 18}ms">
+      <header class="route-group-head">
+        <span class="route-group-title">${esc(g.from)}<em>→</em>${esc(g.to)}</span>
+        <span class="route-group-meta">${fmt(g.cars.length)} 辆 · 最低 ¥${money(Math.min(...g.cars.map(c => Number(c.price) || 0)))}</span>
+        ${more > 0 ? `<button class="route-group-more" data-route="${esc(key)}">＋ ${more} 辆</button>` : ""}
+      </header>
+      <div class="car-grid">${cars.map((it, i) => carCard(it, i)).join("")}</div>
+    </section>`;
+  }).join("");
+  const restGroups = groupList.length - shown;
+  $("#list").innerHTML = sections + (restGroups > 0
+    ? `<button class="feed-more" id="moreRoutes">继续看路线 · 还有 ${fmt(restGroups)} 条</button>`
+    : `<div class="list-end">全部路线已展开 · 也可以直接搜索城市或车型</div>`);
+  $$("#list [data-route]").forEach(btn => {
+    btn.onclick = () => {
+      hitchExpandedRoutes.add(btn.dataset.route);
+      renderList();
+    };
+  });
+  const moreBtn = $("#moreRoutes");
+  if(moreBtn) moreBtn.onclick = () => { hitchRouteShown += 6; renderList(); };
 }
 
 /* ------------------------------------------------------------------ 关注 / 订阅 */
@@ -1186,7 +1520,7 @@ function buildRentalPicker(){
   }
   rentalPicker = createCityPicker("#rentalCityPicker", {
     placeholder: "全部城市", data: rows, meta: rentalCityMeta,
-    onChange: v => { state.rental.city = v; syncHash(); renderRentalList(); renderRentalLeaders(); },
+    onChange: v => { state.rental.city = v; rentalShown = 120; syncHash(); renderRentalList(); renderRentalLeaders(); },
   });
   rentalPicker.set(state.rental.city, true);
 }
@@ -1203,10 +1537,15 @@ function rentalFiltered(){
     return true;
   });
   const by = {
-    daily: (a,b) => (a.daily || 0) - (b.daily || 0),
-    total: (a,b) => (a.total || 0) - (b.total || 0),
+    daily: (a,b) => (a.listDaily || 0) - (b.listDaily || 0),
+    calendar: (a,b) => {
+      if(a.calendarTotal == null && b.calendarTotal == null) return a.listDaily - b.listDaily;
+      if(a.calendarTotal == null) return 1;
+      if(b.calendarTotal == null) return -1;
+      return a.calendarDaily - b.calendarDaily;
+    },
     save: (a,b) => (b.save || 0) - (a.save || 0),
-  }[state.rental.sort] || ((a,b) => a.daily - b.daily);
+  }[state.rental.sort] || ((a,b) => a.listDaily - b.listDaily);
   return arr.sort(by);
 }
 function periodMeta(){
@@ -1221,20 +1560,20 @@ function renderRentalBoard(){
   if(!RENTAL) return;
   const s = RENTAL.summary || {};
   const p = periodMeta();
-  $("#rentalHeroMin").textContent = p.minDaily || s.minDaily || "—";
+  $("#rentalHeroMin").textContent = p.minListDaily ?? p.minDaily ?? s.minListDaily ?? "—";
   $("#rentalBoard").innerHTML = [
     ["覆盖城市", fmt(s.cities), "城", "", `全量扫描 ${fmt(s.requested)} 城`],
-    ["最低套餐日均", money(p.minDaily), "元/天", "amber", `含服务费约 ${money(p.minAllInDaily)}/天（估）`],
-    ["租期套餐价", money(p.minTotal), "元", "jade", `${p.days || state.rental.days} 天租金 · App 同口径`],
-    ["好价数量", fmt(p.good || 0), "条", "", `狠价 ${fmt(p.great || 0)} 条 · 车型 ${fmt(s.models)} 款`],
+    ["最低列表日均", money(p.minListDaily ?? p.minDaily), "元/天", "amber", "候选参考，不是套餐合计"],
+    ["日历已核", fmt(p.calendarVerified || 0), "条", "jade", `本租期共 ${fmt(p.count || 0)} 条；逐日合计可复核`],
+    ["陈旧沿用", fmt(p.stale || 0), "条", p.stale ? "rose" : "", p.stale ? "保持原租期与核价时间" : "本租期均为本轮观测"],
   ].map(([k, v, u, cls, sub]) => `
     <div class="fig"><div class="k">${k}</div><div class="v ${cls}">${v}<small>${u}</small></div><div class="s">${esc(sub)}</div></div>`).join("");
   const [from, to] = shortRange(p).split(" → ");
-  $("#rentalWindow").innerHTML = `<span>统一租期</span>
+  $("#rentalWindow").innerHTML = `<span>当前票面租期</span>
     <b>${esc(from || "—")}</b><span class="arrow">→</span>
     <b>${esc(to || "—")}</b>
     <span>共 <b>${p.days || state.rental.days}</b> 天</span>
-    <span class="tagline">取还车均为当地时间 · 租金 + 出行服务费</span>`;
+    <span class="tagline">列表日均 · 日历合计 · 订单应付，三层分开盖章</span>`;
 }
 function renderPeriods(){
   if(!RENTAL) return;
@@ -1244,9 +1583,15 @@ function renderPeriods(){
     const info = (s.periods || {})[String(days)] || {};
     btn.classList.toggle("on", days === Number(state.rental.days));
     const small = btn.querySelector("small");
-    if(small) small.textContent = `${days} 天 · ${info.minDaily ? "¥" + info.minDaily + " 起" : "暂无"}`;
+    const min = info.minListDaily ?? info.minDaily;
+    if(small) small.textContent = `${days} 天 · ${min ? "参考 ¥" + min + "/天" : "暂无"}`;
   });
   $("#leadDays").textContent = `${state.rental.days} 天`;
+}
+function rentalRange(it){
+  const from = String(it.pickupAt || "").slice(5, 16);
+  const to = String(it.returnAt || "").slice(5, 16);
+  return from && to ? `${from} → ${to}` : "";
 }
 function renderRentalList(){
   if(!RENTAL){
@@ -1259,24 +1604,36 @@ function renderRentalList(){
     $("#rentalList").innerHTML = `<div class="empty">这个城市 / 租期还没有报价 —— 换一个城市或租期试试。</div>`;
     return;
   }
-  const LIMIT = 320;
-  const meta = periodMeta();
-  const range = shortRange(meta);
-  $("#rentalList").innerHTML = arr.slice(0, LIMIT).map((it, i) => {
+  const visible = arr.slice(0, rentalShown);
+  $("#rentalList").innerHTML = visible.map((it, i) => {
     const tierLabel = it.tier === "great" ? "狠价" : it.tier === "good" ? "好价" : it.tier === "fair" ? "可看" : "常规";
     const dept = it.dept || "全市门店";
-    const distance = it.distance ? ` · ${it.distance}` : "";
-    return `<article class="deal ${esc(it.tier || "")}" style="animation-delay:${Math.min(i, 12) * 12}ms">
+    const range = rentalRange(it);
+    const cal = it.calendarTotal == null
+      ? `<b class="pending">—</b><span>待日历核价</span>`
+      : `<b>¥${money(it.calendarTotal)}</b><span>逐日合计 · ¥${money(it.calendarDaily)}/天</span>`;
+    const stale = it.stale ? `<span class="stamp stale">陈旧沿用</span>` : `<span class="stamp ok">本轮观测</span>`;
+    return `<article class="deal ticket ${esc(it.tier || "")}" style="animation-delay:${Math.min(i, 12) * 12}ms">
       <div class="deal-city">
         ${it.pic ? `<img class="deal-pic" src="${esc(it.pic)}" alt="" loading="lazy" onerror="this.style.display='none'">` : ""}
-        <div class="txt"><b>${esc(it.city)}</b><span>${esc(dept)}${esc(distance)}</span><span class="range">${range ? "租期 " + esc(range) : ""}</span></div>
+        <div class="txt">
+          <b>${esc(it.city)}</b>
+          <span>${esc(dept)}${it.deptId ? " · #" + esc(it.deptId) : ""}</span>
+          <span class="range">${range ? esc(range) : "租期待核"} · ${it.days} 天</span>
+          <span class="stamps">${stale}<span class="stamp ${esc(it.evidenceTone)}">${esc(it.evidence)}</span></span>
+        </div>
       </div>
-      <div class="deal-model"><b>${esc(it.model)}</b><span>${esc(it.desc || "")}${it.brand ? " · " + esc(it.brand) : ""}</span></div>
-      <div class="deal-day"><b>${money(it.daily)}</b><span>元/日均 · 套餐</span></div>
-      <div class="deal-total"><b>¥${money(it.total)}</b><span>${it.days} 天套餐价 · 全包约 ¥${money(it.allInTotal)}</span></div>
-      <div class="deal-save"><span class="tag ${esc(it.tier || "")}">${tierLabel} · 省 ${fmt(it.save)}%</span><s>门市 ${money(it.standardDaily)}/天</s></div>
+      <div class="deal-model"><b>${esc(it.model)}</b><span>${esc(it.desc || "")}${it.brand ? " · " + esc(it.brand) : ""}</span><span class="list-note">列表价仅用于找候选</span></div>
+      <div class="deal-day"><b>${money(it.listDaily)}</b><span>元/天 · 参考</span></div>
+      <div class="deal-cal">${cal}</div>
+      <div class="deal-payable"><b>待核价</b><span>登录后订单明细</span></div>
+      <div class="deal-save"><span class="tag ${esc(it.tier || "")}">${tierLabel} · 门市 −${fmt(it.save)}%</span><s>门市 ${money(it.standardDaily)}/天</s></div>
     </article>`;
-  }).join("") + (arr.length > LIMIT ? `<div class="empty">仅显示前 ${LIMIT} 条，请用城市或车型缩小范围</div>` : "");
+  }).join("") + (arr.length > rentalShown
+    ? `<button class="load-more" id="loadMoreRental" type="button">继续展开票根 · 还有 ${fmt(arr.length - rentalShown)} 条</button>`
+    : `<div class="list-end">票根已全部展开</div>`);
+  const more = $("#loadMoreRental");
+  if(more) more.onclick = () => { rentalShown += 120; renderRentalList(); };
 }
 function renderRentalLeaders(){
   if(!RENTAL) return;
@@ -1294,13 +1651,14 @@ function renderRentalLeaders(){
   $$("#leadDaily .lrow, #leadSave .lrow").forEach(el => {
     el.onclick = () => {
       state.rental.city = el.dataset.city;
+      rentalShown = 120;
       if(rentalPicker) rentalPicker.set(state.rental.city, true);
       syncHash(); renderRentalList();
     };
   });
-  $("#rentalNote").innerHTML = `取车 <b>${esc(RENTAL.pickup_at || "—")}</b>，三档租期统一口径。<br>
-    <b>套餐价 / 日均</b>与 App 选车页一致（周租、半月租、月租各有套餐优惠，长租越久日均越低）。<br>
-    出行服务费（基础服务 + 车辆整备）是<b>估算值</b>，App 在订单页另收，这里只在「全包约」里给参考。<br>
+  $("#rentalNote").innerHTML = `<b>列表参考</b>：选车接口的套餐日均，只用于找候选，不乘天数当总价。<br>
+    <b>日历已核</b>：7/15/30 天逐日价合计，与价格日历接口对账；仍不是订单应付。<br>
+    <b>订单应付</b>：登录后的费用明细，本站在未取得契约前始终显示「待核价」。<br>
     数据 ${esc(ago(RENTAL.generated_at))}更新 · 全城市全车型，每天 12:00 抓一轮。`;
 }
 function renderRentalAll(){
@@ -1316,7 +1674,7 @@ function renderRentalAll(){
 /* ------------------------------------------------------------------ 渲染总入口 */
 function renderFoot(){
   if(!DATA) return;
-  $("#foot").textContent = `数据源 神州租车移动端公开接口 · 顺风车 ${ago(DATA.generated_at)}更新（15 分钟一轮） · 长租 ${RENTAL ? ago(RENTAL.generated_at) + "更新（每天 12:00 全量抓一轮）" : "行情待生成"} · 租金与服务费均以 App 下单页为准`;
+  $("#foot").textContent = `数据源 神州租车移动端公开接口 · 顺风车 ${ago(DATA.generated_at)}更新（15 分钟一轮） · 长租 ${RENTAL ? ago(RENTAL.generated_at) + "更新（每天 12:00 全量抓一轮）" : "行情待生成"} · 列表日均只作候选参考，最终以登录后订单费用明细为准`;
 }
 function renderAll(){
   if(!DATA) return;
@@ -1341,47 +1699,32 @@ function openMail(){
   $("#mailRule").innerHTML = Object.keys(rules).length
     ? `将订阅：<br>${describeRules(rules)}<div style="color:var(--dim);margin-top:6px">当前命中 ${fmt(hitchFiltered().length)} 条</div>`
     : "先在左侧选城市、路线或品牌，这里会显示将要订阅的条件。";
-  loadRemoteSubs();
+  const ready = Boolean(CONTROL_PLANE.enabled && CONTROL_PLANE.apiBase);
+  $("#createSub").disabled = !ready;
+  $("#createSub").textContent = ready ? "发送验证邮件" : "私有后台未连接";
+  $("#mailStatus").innerHTML = ready
+    ? `<div class="r"><span class="dot on"></span><span>双重确认开启；邮箱不会进入公开 JSON</span></div>`
+    : `<div class="r"><span class="dot warn"></span><span>只读模式：未部署私有订阅后台，不收集邮箱</span></div>`;
 }
 function closeMail(){
   $("#scrim").classList.remove("show");
   $("#mailDrawer").classList.remove("show");
   document.body.style.overflow = "";
 }
-function subscribeIssueUrl(repo, profile){
-  const clean = Object.fromEntries(Object.entries(profile || {})
-    .filter(([k, v]) => v !== "" && v != null && !(Array.isArray(v) && !v.length)));
-  const title = "[订阅] " + (clean.name || "我的订阅");
-  const body = `<!-- szhitch-subscription-v1 -->\n本 Issue 是一条预警订阅：**开启 = 订阅，关闭 = 退订**；改条件直接编辑下面的 JSON。\n\n\`\`\`json\n${JSON.stringify(clean, null, 2)}\n\`\`\`\n\n> 每轮监控会读取本 Issue：命中的车会推送到订阅里的邮箱（如填写），并在本 Issue 下回执。`;
-  return `https://github.com/${repo}/issues/new?title=${encodeURIComponent(title)}&body=${encodeURIComponent(body)}`;
-}
-async function loadRemoteSubs(){
-  const box = $("#remoteSubs");
-  const repo = DATA?.repo || "";
-  if(!repo){
-    box.innerHTML = `<div class="hint">面板数据里没有仓库信息，暂时不能用 Issue 订阅；可以先用下面的手动配置。</div>`;
-    return;
-  }
-  box.innerHTML = `<div class="hint">读取订阅中…</div>`;
+async function loadRuntime(){
   try{
-    const r = await fetch(`https://api.github.com/repos/${repo}/issues?state=open&per_page=50&sort=created&direction=desc`,
-      {headers: {Accept: "application/vnd.github+json"}});
-    if(!r.ok) throw new Error("HTTP " + r.status);
-    const issues = await r.json();
-    const subs = (Array.isArray(issues) ? issues : [])
-      .filter(i => !i.pull_request && String(i.title || "").trim().startsWith("[订阅]"));
-    if(!subs.length){
-      box.innerHTML = `<div class="hint">还没有生效的订阅。填好条件后点上面的按钮，GitHub 会帮你创建。</div>`;
-      return;
+    const r = await fetch("runtime.json?_=" + Date.now(), {cache: "no-store"});
+    if(!r.ok) return;
+    const cfg = await r.json();
+    const base = String(cfg.apiBase || "").replace(/\/$/, "");
+    const secureOrLocal = /^https:\/\//.test(base) || /^http:\/\/(127\.0\.0\.1|localhost)(:\d+)?$/.test(base);
+    if(cfg.enabled && secureOrLocal){
+      CONTROL_PLANE = { enabled: true, apiBase: base, paymentEnabled: Boolean(cfg.paymentEnabled) };
+      const admin = $("#adminLink");
+      if(admin){ admin.href = base + "/admin"; admin.hidden = false; admin.style.display = "inline-flex"; }
     }
-    box.innerHTML = `<div class="hint" style="margin-top:13px">已生效 ${subs.length} 条（点开可改条件，关闭即退订）</div>` +
-      subs.map(i => {
-        const name = esc(String(i.title || "").replace(/^\[订阅\]\s*/, ""));
-        return `<div class="prof"><b><a href="${esc(i.html_url)}" target="_blank" rel="noopener">#${i.number} ${name}</a></b>
-          <span><a href="${esc(i.html_url)}" target="_blank" rel="noopener">管理 ↗</a></span></div>`;
-      }).join("");
   }catch(e){
-    box.innerHTML = `<div class="hint">读取订阅失败：${esc(e.message)}。可能是 GitHub API 限流，稍后再试。</div>`;
+    // 静态页没有后台时保持只读，不弹错误。
   }
 }
 function toast(msg){
@@ -1454,6 +1797,7 @@ function switchMode(mode, silent){
   $("#hitchView").hidden = state.mode !== "hitch";
   $("#rentalView").hidden = state.mode !== "rental";
   if(state.mode === "rental" && RENTAL){ renderRentalAll(); }
+  else if(state.mode === "rental"){ loadRentalData(false); }
   if(!silent){ syncHash(); window.scrollTo({top: 0, behavior: "smooth"}); }
 }
 $$(".mode-btn").forEach(btn => btn.addEventListener("click", () => switchMode(btn.dataset.mode)));
@@ -1508,22 +1852,34 @@ $("#copyWatchCmd").onclick = () => {
   if(!Object.keys(r).length){ toast("先在左侧选点条件"); return; }
   copyText(JSON.stringify(r, null, 2));
 };
-$("#createSub").onclick = () => {
+$("#createSub").onclick = async () => {
   const r = watchRules();
   if(!Object.keys(r).length){ toast("先选城市、路线或品牌"); return; }
-  const repo = DATA?.repo || "";
-  if(!repo){ toast("缺少 subscribe.repo 配置"); return; }
+  if(!CONTROL_PLANE.enabled || !CONTROL_PLANE.apiBase){ toast("私有订阅后台尚未连接"); return; }
   const email = $("#subEmail").value.trim();
-  if(email && !/^\S+@\S+\.\S+$/.test(email)){ toast("邮箱格式不对"); return; }
+  if(!/^\S+@\S+\.\S+$/.test(email)){ toast("请填写有效的接收邮箱"); return; }
   const eventSet = $$('input[name="mailEvent"]:checked').map(x => x.value);
   if(!eventSet.length){ toast("至少选择一个提醒时刻"); return; }
   const name = [state.from, state.to].filter(Boolean).join("→")
     || (r.brands ? r.brands.slice(0, 2).join("/") : "") || "我的订阅";
-  const profile = { name, events: eventSet, ...r };
-  if(email) profile.email = email;
-  window.open(subscribeIssueUrl(repo, profile), "_blank", "noopener");
-  toast("已打开 GitHub，提交 Issue 后下轮生效");
-  setTimeout(loadRemoteSubs, 8000);
+  const btn = $("#createSub");
+  btn.disabled = true; btn.textContent = "提交中…";
+  try{
+    const resp = await fetch(CONTROL_PLANE.apiBase + "/api/subscriptions", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify({email, rules: {name, events: eventSet, ...r}}),
+    });
+    const result = await resp.json().catch(() => ({}));
+    if(!resp.ok) throw new Error(result.error || ("HTTP " + resp.status));
+    $("#mailStatus").innerHTML = `<div class="r"><span class="dot on"></span><span>${esc(result.message || "请查收验证邮件")}</span></div>`;
+    $("#subEmail").value = "";
+    toast("验证邮件已提交，请查收");
+  }catch(err){
+    $("#mailStatus").innerHTML = `<div class="r"><span class="dot warn"></span><span>${esc(err.message)}</span></div>`;
+  }finally{
+    btn.disabled = false; btn.textContent = "发送验证邮件";
+  }
 };
 
 $("#mailOpen").onclick = openMail;
@@ -1536,12 +1892,13 @@ document.addEventListener("keydown", e => { if(e.key === "Escape") closeMail(); 
 $("#periods").addEventListener("click", e => {
   const b = e.target.closest(".period"); if(!b) return;
   state.rental.days = Number(b.dataset.days);
+  rentalShown = 120;
   syncHash(); renderRentalBoard(); renderPeriods(); renderRentalList(); renderRentalLeaders();
 });
 $("#rq").addEventListener("input", e => {
-  state.rental.q = e.target.value; syncHash(); renderRentalList();
+  state.rental.q = e.target.value; rentalShown = 120; syncHash(); renderRentalList();
 });
-$("#rSort").addEventListener("change", e => { state.rental.sort = e.target.value; renderRentalList(); });
+$("#rSort").addEventListener("change", e => { state.rental.sort = e.target.value; rentalShown = 120; renderRentalList(); });
 $("#reload").onclick = () => loadAll(true);
 
 /* ------------------------------------------------------------------ 自动刷新 */
@@ -1559,7 +1916,7 @@ window.addEventListener("hashchange", () => { if(DATA) applyHash(); });
 
 /* ------------------------------------------------------------------ 启动 */
 setSync(true);
-loadAll(false);
+loadRuntime().finally(() => loadAll(false));
 </script>
 </body>
 </html>

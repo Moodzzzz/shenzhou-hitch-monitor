@@ -22,6 +22,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any, Iterable, Sequence
 
@@ -29,28 +30,46 @@ from .catalog import load_brands, load_cities, load_city_centers, parse_model
 from .gateway import GatewayClient, GatewayError
 from .models import parse_int
 from .proxy import pool_from_config
+from .rental_pricing import (
+    EVIDENCE_CALENDAR_RENT,
+    EVIDENCE_CODES,
+    EVIDENCE_LIST_REFERENCE,
+    LIST_REFERENCE_NOTE,
+    PriceContractError,
+    evidence_name,
+    parse_price_calendar,
+)
 
 ROOT = Path(__file__).resolve().parents[1]
 RENTAL_CITY_FILE = ROOT / "data" / "rental_cities.json"
 DEFAULT_PERIODS = (7, 15, 30)
 CN_TZ = timezone(timedelta(hours=8))
-PAYLOAD_VERSION = 2
-#: 没有官方月租起价可校准时的兜底服务费（元/天，按车型组）。
-#: 2 经济 / 9 舒适 / 16 SUV / 23 商务 / 30 豪华 / 44 新能源。
-DEFAULT_SERVICE_FEE = {2: 50, 9: 60, 16: 80, 23: 80, 30: 100, 44: 50}
-DEFAULT_SERVICE_FEE_OTHER = 50
-#: 反推出来的服务费日价超出这个区间，说明租期口径不可比，退回兜底档位。
-SERVICE_FEE_MIN = 20.0
-SERVICE_FEE_MAX = 130.0
+PAYLOAD_VERSION = 3
 TIER_NAMES = ("normal", "fair", "good", "great")
-#: 紧凑报价行的列序：城市 / 车型 / 天数 / 租金日价 / 服务费日价 / 门市日价 / 总价 / 门店序号。
-#: 折扣与档位由前端按「总价 vs 门市+服务费」现算，省掉两个字段。
-C_CITY, C_MODEL, C_DAYS, C_RENT, C_SERVICE, C_STD, C_TOTAL, C_DEPT = range(8)
+#: 紧凑报价行的列序：
+#: 城市 / 车型 / 天数 / 列表套餐日均(分) / 门市日价(分) / 日历租金合计(分,可空)
+#: / 门店序号 / 门店ID / 证据码 / 是否陈旧
+C_CITY, C_MODEL, C_DAYS, C_LIST, C_STD, C_CAL, C_DEPT, C_DEPT_ID, C_EVIDENCE, C_STALE = range(10)
+
+
+def _yuan_int(value: Any, *, field: str = "金额") -> int | None:
+    """严格解析整数元；出现小数或非法值时返回 None 并保留待核状态。"""
+    try:
+        amount = Decimal(str(value).strip())
+    except (InvalidOperation, ValueError):
+        return None
+    if not amount.is_finite() or amount < 0 or amount != amount.to_integral_value():
+        return None
+    return int(amount)
 
 
 @dataclass
 class RentalDeal:
-    """某城市、某租期下的一款车（租金与服务费分开记）。"""
+    """某城市、某租期、某门店下的一款车。
+
+    ``rent_daily`` 是列表套餐日均参考；``calendar_total_fen`` 仅在价格日历
+    核对成功后存在。它们都不代表订单应付总额。
+    """
 
     city: str
     city_id: str
@@ -65,21 +84,30 @@ class RentalDeal:
     dept: str
     distance: str
     rent_daily: int
-    service_daily: float
-    daily: float
     standard_daily: int
-    rent_total: int
-    service_total: int
-    total: int
     save_pct: int
+    dept_id: str = ""
+    calendar_total_fen: int | None = None
+    evidence: str = EVIDENCE_LIST_REFERENCE
+    stale: bool = False
+    pickup_at: str = ""
+    return_at: str = ""
+    price_generated_at: str = ""
 
     @property
-    def all_in_total(self) -> int:
-        return self.rent_total + self.service_total
+    def daily(self) -> float:
+        return float(self.rent_daily)
 
     @property
-    def all_in_daily(self) -> float:
-        return round(self.all_in_total / self.days, 1) if self.days else 0.0
+    def list_total_fen(self) -> int:
+        """只用于展示“按列表日均折算”的参考合计，不是套餐价。"""
+        return self.rent_daily * 100 * self.days
+
+    @property
+    def calendar_daily(self) -> float | None:
+        if self.calendar_total_fen is None or not self.days:
+            return None
+        return round(self.calendar_total_fen / 100 / self.days, 2)
 
     @property
     def tier(self) -> str:
@@ -108,16 +136,21 @@ class RentalDeal:
             "desc": self.desc,
             "pic": self.pic,
             "dept": self.dept,
+            "deptId": self.dept_id,
             "distance": self.distance,
-            "rentDaily": self.rent_daily,
-            "serviceDaily": round(self.service_daily, 1),
-            "daily": round(self.daily, 1),
+            "listDaily": self.rent_daily,
             "standardDaily": self.standard_daily,
-            "rentTotal": self.rent_total,
-            "serviceTotal": self.service_total,
-            "total": self.total,
-            "allInDaily": self.all_in_daily,
-            "allInTotal": self.all_in_total,
+            "listTotal": round(self.list_total_fen / 100, 2),
+            "calendarTotal": (
+                None if self.calendar_total_fen is None
+                else round(self.calendar_total_fen / 100, 2)
+            ),
+            "calendarDaily": self.calendar_daily,
+            "evidence": self.evidence,
+            "stale": self.stale,
+            "pickupAt": self.pickup_at,
+            "returnAt": self.return_at,
+            "priceGeneratedAt": self.price_generated_at,
             "save": self.save_pct,
             "tier": self.tier,
         }
@@ -130,7 +163,7 @@ class RentalCity:
     depts: int = 0
     model_count: int = 0
     deals: dict[int, list[RentalDeal]] = field(default_factory=dict)
-    group_prices: dict[int, int] = field(default_factory=dict)
+    period_meta: dict[int, dict[str, Any]] = field(default_factory=dict)
     dept_names: list[str] = field(default_factory=list)
     stale: bool = False
 
@@ -142,38 +175,40 @@ class RentalCity:
         for days, rows in sorted(self.deals.items()):
             if not rows:
                 continue
-            cheapest = min(rows, key=lambda x: (x.daily, x.total))
-            best_save = max(rows, key=lambda x: (x.save_pct, -x.daily))
-            periods[str(days)] = {
-                "minDaily": round(cheapest.daily, 1),
-                "minRentDaily": cheapest.rent_daily,
-                "minServiceDaily": round(cheapest.service_daily, 1),
-                "minTotal": cheapest.total,
-                "minRentTotal": cheapest.rent_total,
-                "minServiceTotal": cheapest.service_total,
-                "minAllInDaily": cheapest.all_in_daily,
-                "minAllInTotal": cheapest.all_in_total,
+            cheapest = min(rows, key=lambda x: (x.rent_daily, x.model))
+            best_save = max(rows, key=lambda x: (x.save_pct, -x.rent_daily))
+            meta = dict(self.period_meta.get(days) or {})
+            meta.update({
+                "days": days,
+                "pickupAt": meta.get("pickupAt", ""),
+                "returnAt": meta.get("returnAt", ""),
+                "priceGeneratedAt": meta.get("priceGeneratedAt", ""),
+                "observedAt": meta.get("observedAt", ""),
+                "stale": bool(meta.get("stale", self.stale)),
+                "source": meta.get("source", "chooseCar/v3"),
+                "evidence": meta.get("evidence", EVIDENCE_LIST_REFERENCE),
+                "minListDaily": float(cheapest.rent_daily),
+                "minDaily": float(cheapest.rent_daily),
                 "minModel": cheapest.model,
                 "bestSave": best_save.save_pct,
                 "bestModel": best_save.model,
+                "calendarVerified": sum(1 for row in rows if row.calendar_total_fen is not None),
                 "count": len(rows),
-            }
+            })
+            periods[str(days)] = meta
         all_deals = [d for rows in self.deals.values() for d in rows]
-        best = min(all_deals, key=lambda x: (x.daily, x.total), default=None)
+        best = min(all_deals, key=lambda x: (x.rent_daily, x.model), default=None)
         out = {
             "name": self.name,
             "cityId": self.city_id,
             "depts": self.depts,
             "models": self.model_count,
-            "minDaily": round(best.daily, 1) if best else 0,
-            "minRentDaily": best.rent_daily if best else 0,
-            "minServiceDaily": round(best.service_daily, 1) if best else 0,
-            "minAllInDaily": best.all_in_daily if best else 0,
+            "minListDaily": float(best.rent_daily) if best else 0,
+            "minDaily": float(best.rent_daily) if best else 0,
             "periods": periods,
             "deptNames": self.dept_names,
+            "stale": bool(self.stale),
         }
-        if self.stale:
-            out["stale"] = True
         return out
 
 
@@ -202,22 +237,24 @@ def parse_city_deals(
         if not isinstance(dept, dict):
             continue
         dept_name = str(dept.get("deptName") or "").strip()
+        dept_id = str(dept.get("deptId") or "").strip()
         distance = str(dept.get("deptDistance") or "").strip()
         for raw in dept.get("models") or []:
             if not isinstance(raw, dict) or not _tier_ok(raw.get("bookFlag", True)):
                 continue
             model_id = parse_int(raw.get("modelId")) or 0
-            daily = parse_int(raw.get("packagePrice")) or parse_int(raw.get("lowPrice")) or 0
-            if not model_id or daily <= 0:
+            daily = _yuan_int(raw.get("packagePrice"))
+            if daily is None:
+                daily = _yuan_int(raw.get("lowPrice"))
+            if not model_id or daily is None or daily <= 0:
                 continue
             model_total += 1
-            standard = parse_int(raw.get("dailyPrice")) or daily
+            standard = _yuan_int(raw.get("dailyPrice")) or daily
             model_name = str(raw.get("modelName") or "未知车型").strip()
             info = parse_model(model_name, catalog)
             save = 0
             if standard > daily:
                 save = int(round((1 - daily / standard) * 100))
-            rent_total = daily * days
             deal = RentalDeal(
                 city=city,
                 city_id=str(city_id),
@@ -230,18 +267,15 @@ def parse_city_deals(
                 desc=str(raw.get("modelDesc") or "").strip(),
                 pic=str(raw.get("modelImgUrl") or "").strip(),
                 dept=dept_name,
+                dept_id=dept_id,
                 distance=distance,
                 rent_daily=daily,
-                service_daily=0.0,
-                daily=float(daily),
                 standard_daily=standard,
-                rent_total=rent_total,
-                service_total=0,
-                total=rent_total,
                 save_pct=save,
+                evidence=EVIDENCE_LIST_REFERENCE,
             )
             old = merged.get(model_id)
-            # 同款车在多个门店出现时，保留租金最低的那个门店
+            # 同款车在多个门店出现时，保留列表日均最低的那个门店；保留 deptId。
             if old is None or (deal.rent_daily, deal.dept) < (old.rent_daily, old.dept):
                 merged[model_id] = deal
 
@@ -255,97 +289,50 @@ def apply_service_fees(
     fallback: dict[int, int] | None = None,
     calibrate: bool = False,
 ) -> None:
-    """把「租金 + 出行服务费」补成总价。
+    """历史兼容占位：服务费不再反推，也不再伪造套餐总价。
 
-    校准口径：同城同车型组的官方月租起价 ≈ 30 天租金 + 30 天服务费，
-    差额除以 30 得到服务费日价；超出合理区间说明该组月租起价与选车
-    口径不可比，退回公开必缴结构的兜底档位。
+    保留函数名只为避免旧调用方导入失败；参数被显式忽略。
     """
-    fallback = fallback or DEFAULT_SERVICE_FEE
-    rates: dict[int, float] = {}
-    rows30 = city.deals.get(30) or [] if calibrate else []
-    for deal in rows30:
-        low = city.group_prices.get(deal.group_id)
-        if not low or deal.group_id in rates:
-            continue
-        peers = [d for d in rows30 if d.group_id == deal.group_id]
-        if not peers:
-            continue
-        diff = low - min(d.rent_total for d in peers)
-        if diff <= 0:
-            continue
-        rate = diff / 30.0
-        if SERVICE_FEE_MIN <= rate <= SERVICE_FEE_MAX:
-            rates[deal.group_id] = rate
-
-    dept_index: dict[str, int] = {}
-
-    def dept_idx(name: str) -> int:
-        if name not in dept_index:
-            dept_index[name] = len(city.dept_names)
-            city.dept_names.append(name)
-        return dept_index[name]
-
+    del fallback, calibrate
     for days, rows in city.deals.items():
         for deal in rows:
-            rate = rates.get(deal.group_id)
-            if rate is None:
-                rate = float(fallback.get(deal.group_id, DEFAULT_SERVICE_FEE_OTHER))
-            deal.service_daily = round(rate, 1)
-            deal.service_total = int(round(rate * days))
-            deal.rent_total = deal.rent_daily * days
-            # 与 App 的「套餐价／日均」对齐：只算租金，服务费单独列
-            deal.total = deal.rent_total
-            deal.daily = float(deal.rent_daily)
-            standard_total = deal.standard_daily * days
-            deal.save_pct = (
-                max(0, int(round((1 - deal.total / standard_total) * 100)))
-                if standard_total
-                else 0
-            )
-            dept_idx(deal.dept)
-        rows.sort(key=lambda x: (x.daily, x.total, x.model))
+            deal.calendar_total_fen = None
+            deal.evidence = EVIDENCE_LIST_REFERENCE
+        rows.sort(key=lambda x: (x.rent_daily, x.model))
         city.deals[days] = rows
 
 
 def _compact_deal(deal: RentalDeal, dept_index: dict[str, int]) -> list[Any]:
-    fee = round(deal.service_daily, 1)
     return [
         deal.city_id,
         deal.model_id,
         deal.days,
-        deal.rent_daily,
-        int(fee) if float(fee).is_integer() else fee,
-        deal.standard_daily,
-        deal.total,
+        deal.rent_daily * 100,
+        deal.standard_daily * 100,
+        deal.calendar_total_fen,
         dept_index.get(deal.dept, 0),
+        deal.dept_id,
+        EVIDENCE_CODES.get(deal.evidence, EVIDENCE_CODES[EVIDENCE_LIST_REFERENCE]),
+        1 if deal.stale else 0,
     ]
 
 
 def deal_daily(row: Sequence[Any]) -> float:
-    """套餐日均（与 App 车型卡上的「¥xx/日均」同口径）。"""
-    days = int(row[C_DAYS]) or 1
-    return round(int(row[C_TOTAL]) / days, 1)
+    """列表套餐日均参考价（不是套餐总价，不是应付）。"""
+    return round(int(row[C_LIST]) / 100, 2)
 
 
-def deal_all_in_daily(row: Sequence[Any]) -> float:
-    """租金 + 出行服务费估算后的日均，仅作参考。"""
-    days = int(row[C_DAYS]) or 1
-    return round((int(row[C_TOTAL]) + float(row[C_SERVICE]) * days) / days, 1)
-
-
-def deal_all_in_total(row: Sequence[Any]) -> int:
-    days = int(row[C_DAYS]) or 1
-    return int(int(row[C_TOTAL]) + float(row[C_SERVICE]) * days)
+def deal_list_total_fen(row: Sequence[Any]) -> int:
+    """按列表日均折算的参考合计，仅供排序说明，不得当作报价。"""
+    return int(row[C_LIST]) * (int(row[C_DAYS]) or 1)
 
 
 def deal_save(row: Sequence[Any]) -> int:
-    """相对门市日租的折扣（App 价格日历里的「日租价 vs 套餐价」）。"""
-    days = int(row[C_DAYS]) or 1
-    base = float(row[C_STD]) * days
+    """列表日均相对门市日租的参考折扣。"""
+    base = int(row[C_STD])
     if base <= 0:
         return 0
-    return max(0, int(round((1 - int(row[C_TOTAL]) / base) * 100)))
+    return max(0, int(round((1 - int(row[C_LIST]) / base) * 100)))
 
 
 def deal_tier(row: Sequence[Any]) -> int:
@@ -359,6 +346,26 @@ def deal_tier(row: Sequence[Any]) -> int:
     return 0
 
 
+def _period_meta(
+    city: RentalCity,
+    days: int,
+    *,
+    fallback_pickup: datetime,
+    observed_at: str,
+) -> dict[str, Any]:
+    meta = dict(city.period_meta.get(days) or {})
+    pickup = meta.get("pickupAt") or fallback_pickup.strftime("%Y-%m-%d %H:%M")
+    default_return = (fallback_pickup + timedelta(days=days)).strftime("%Y-%m-%d %H:%M")
+    meta.setdefault("pickupAt", pickup)
+    meta.setdefault("returnAt", default_return)
+    meta.setdefault("observedAt", observed_at)
+    meta.setdefault("priceGeneratedAt", meta["observedAt"])
+    meta.setdefault("stale", bool(city.stale))
+    meta.setdefault("source", "chooseCar/v3")
+    meta.setdefault("evidence", EVIDENCE_LIST_REFERENCE)
+    return meta
+
+
 def build_payload(
     cities: Sequence[RentalCity],
     *,
@@ -368,17 +375,32 @@ def build_payload(
     requested_cities: int = 0,
     carried: int = 0,
 ) -> dict[str, Any]:
-    """把城市报价整理成面板用的紧凑 JSON（车型/门店字典 + 索引行）。"""
+    """把城市报价整理成 v3 紧凑 JSON（只保存有证据的价格层级）。"""
     now = generated_at or datetime.now(CN_TZ)
+    observed_at = now.strftime("%Y-%m-%d %H:%M")
     models: dict[str, list[Any]] = {}
     city_rows: list[dict[str, Any]] = []
-    deals: list[dict[str, Any]] = []
+    deals: list[list[Any]] = []
 
     for city in cities:
-        summary = city.summary()
+        for rows in city.deals.values():
+            for row in rows:
+                if row.dept and row.dept not in city.dept_names:
+                    city.dept_names.append(row.dept)
         dept_index = {name: i for i, name in enumerate(city.dept_names)}
+        for days in city.deals:
+            city.period_meta[days] = _period_meta(
+                city, days, fallback_pickup=pickup_at, observed_at=observed_at
+            )
+        summary = city.summary()
         city_rows.append(summary)
         for days, rows in city.deals.items():
+            meta = city.period_meta[days]
+            for row in rows:
+                row.stale = bool(meta.get("stale", city.stale))
+                row.pickup_at = str(meta.get("pickupAt") or "")
+                row.return_at = str(meta.get("returnAt") or "")
+                row.price_generated_at = str(meta.get("priceGeneratedAt") or "")
             deals.extend(_compact_deal(row, dept_index) for row in rows)
             for row in rows:
                 models.setdefault(
@@ -391,31 +413,36 @@ def build_payload(
         rows = [d for d in deals if int(d[C_DAYS]) == days]
         if not rows:
             continue
-        cheapest = min(rows, key=lambda r: (int(r[C_TOTAL]), int(r[C_RENT])))
+        cheapest = min(rows, key=lambda r: (int(r[C_LIST]), int(r[C_STD])))
         by_days[str(days)] = {
             "days": days,
             "pickupAt": pickup_at.strftime("%Y-%m-%d %H:%M"),
             "returnAt": (pickup_at + timedelta(days=days)).strftime("%Y-%m-%d %H:%M"),
+            "minListDaily": deal_daily(cheapest),
             "minDaily": deal_daily(cheapest),
-            "minRentDaily": int(cheapest[C_RENT]),
-            "minServiceDaily": cheapest[C_SERVICE],
-            "minTotal": min(int(r[C_TOTAL]) for r in rows),
-            "minRentTotal": int(cheapest[C_TOTAL]),
-            "minServiceTotal": int(deal_all_in_total(cheapest) - int(cheapest[C_TOTAL])),
-            "minAllInTotal": deal_all_in_total(cheapest),
-            "minAllInDaily": deal_all_in_daily(cheapest),
-            "avgDaily": round(sum(deal_daily(r) for r in rows) / len(rows), 1),
+            "avgListDaily": round(sum(deal_daily(r) for r in rows) / len(rows), 2),
+            "calendarVerified": sum(1 for r in rows if r[C_CAL] is not None),
+            "calendarAttempts": sum(
+                int((c.period_meta.get(days) or {}).get("calendarAttempts", 0))
+                for c in cities
+            ),
+            "calendarFailures": sum(
+                int((c.period_meta.get(days) or {}).get("calendarFailures", 0))
+                for c in cities
+            ),
+            "stale": sum(1 for r in rows if int(r[C_STALE] or 0)),
             "great": sum(1 for r in rows if deal_tier(r) == 3),
             "good": sum(1 for r in rows if deal_tier(r) >= 2),
             "count": len(rows),
+            "priceKind": "list_reference",
         }
 
     def leader(days: int, key: str, limit: int = 12) -> list[list[Any]]:
         rows = [d for d in deals if int(d[C_DAYS]) == days]
         if key == "save":
-            rows.sort(key=lambda r: (-deal_save(r), int(r[C_TOTAL])))
+            rows.sort(key=lambda r: (-deal_save(r), int(r[C_LIST])))
         else:
-            rows.sort(key=lambda r: (deal_daily(r), int(r[C_TOTAL])))
+            rows.sort(key=lambda r: (int(r[C_LIST]), int(r[C_STD]), str(r[C_DEPT_ID])))
         return rows[:limit]
 
     leaders = {
@@ -428,24 +455,37 @@ def build_payload(
     unique_models = {int(d[C_MODEL]) for d in deals}
     all_min = min((deal_daily(d) for d in deals), default=0)
     error_rows = list(errors or [])
+    stale_cities = sum(1 for c in cities if c.stale)
+    summary = {
+        "requested": requested_cities or len(cities),
+        "cities": len(available),
+        "models": len(unique_models),
+        "deals": len(deals),
+        "minListDaily": all_min,
+        "minDaily": all_min,
+        "carried": stale_cities,
+        "staleCities": stale_cities,
+        "calendarVerified": sum(1 for d in deals if d[C_CAL] is not None),
+        "calendarAttempts": sum(v.get("calendarAttempts", 0) for v in by_days.values()),
+        "calendarFailures": sum(v.get("calendarFailures", 0) for v in by_days.values()),
+        "periods": by_days,
+        "errorCount": len(error_rows),
+    }
     return {
         "v": PAYLOAD_VERSION,
-        "generated_at": now.strftime("%Y-%m-%d %H:%M"),
+        "generated_at": observed_at,
         "pickup_at": pickup_at.strftime("%Y-%m-%d %H:%M"),
         "days": sorted(by_days and [int(k) for k in by_days] or list(DEFAULT_PERIODS)),
         "periods": by_days,
-        "note": "套餐价 = 当前租期的车辆租金合计（与 App 选车页「日均」同口径）；周租/半月租/月租各自有套餐优惠，租期越长日均越低。",
-        "fee_note": "出行服务费（基础服务 + 车辆整备）为估算值，App 在订单页另收，不计入套餐价；不含异地还车、上门取送等条件费用。",
-        "scope": "全城市 · 全车型",
-        "summary": {
-            "requested": requested_cities or len(cities),
-            "cities": len(available),
-            "models": len(unique_models),
-            "deals": len(deals),
-            "minDaily": all_min,
-            "carried": carried,
-            "periods": by_days,
+        "note": LIST_REFERENCE_NOTE,
+        "pricing": {
+            "kind": "list_reference",
+            "payableAvailable": False,
+            "serviceFeeIncluded": False,
+            "note": "列表日均只用于找候选；最终套餐和应付必须等专用价格/订单接口核价。",
         },
+        "scope": "全城市 · 全车型",
+        "summary": summary,
         "models": models,
         "cities": city_rows,
         "deals": deals,
@@ -457,9 +497,9 @@ def build_payload(
 
 def _deal_from_compact(row: Sequence[Any], city: RentalCity, meta: list[Any]) -> RentalDeal:
     days = int(row[C_DAYS]) or 0
-    rent_daily = int(row[C_RENT])
-    total = int(row[C_TOTAL])  # 套餐价（租金合计）
     dept_idx = int(row[C_DEPT]) if len(row) > C_DEPT else 0
+    dept_id = str(row[C_DEPT_ID] or "")
+    period = city.period_meta.get(days) or {}
     return RentalDeal(
         city=city.name,
         city_id=city.city_id,
@@ -472,20 +512,22 @@ def _deal_from_compact(row: Sequence[Any], city: RentalCity, meta: list[Any]) ->
         desc=str(meta[3] if len(meta) > 3 else ""),
         pic=str(meta[4] if len(meta) > 4 else ""),
         dept=(city.dept_names[dept_idx] if len(city.dept_names) > dept_idx else ""),
+        dept_id=dept_id,
         distance="",
-        rent_daily=rent_daily,
-        service_daily=float(row[C_SERVICE]),
-        daily=round(total / days, 1) if days else 0.0,
-        standard_daily=int(row[C_STD]) or rent_daily,
-        rent_total=rent_daily * days,
-        service_total=max(0, int(round(float(row[C_SERVICE]) * days))),
-        total=total,
+        rent_daily=int(row[C_LIST]) // 100,
+        standard_daily=int(row[C_STD]) // 100 or int(row[C_LIST]) // 100,
+        calendar_total_fen=(int(row[C_CAL]) if row[C_CAL] is not None else None),
+        evidence=evidence_name(row[C_EVIDENCE]),
+        stale=bool(int(row[C_STALE] or 0)),
+        pickup_at=str(period.get("pickupAt") or ""),
+        return_at=str(period.get("returnAt") or ""),
+        price_generated_at=str(period.get("priceGeneratedAt") or ""),
         save_pct=deal_save(row),
     )
 
 
 def city_from_payload(payload: dict[str, Any] | None, name: str) -> RentalCity | None:
-    """从上一轮紧凑产物里恢复一个城市，用于本轮抓取失败时兜底。"""
+    """从上一轮 v3 产物恢复整城快照；旧租期和时间必须原样保留。"""
     if not payload or payload.get("v") != PAYLOAD_VERSION:
         return None
     meta = next((c for c in payload.get("cities") or [] if c.get("name") == name), None)
@@ -500,12 +542,20 @@ def city_from_payload(payload: dict[str, Any] | None, name: str) -> RentalCity |
         dept_names=list(meta.get("deptNames") or []),
         stale=True,
     )
+    for day_text, period in (meta.get("periods") or {}).items():
+        if isinstance(period, dict):
+            restored = dict(period)
+            restored["stale"] = True
+            city.period_meta[int(day_text)] = restored
     for row in payload.get("deals") or []:
         if not isinstance(row, list) or str(row[C_CITY]) != city.city_id:
             continue
         day = int(row[C_DAYS]) or 0
         deal = _deal_from_compact(row, city, models.get(str(row[C_MODEL])) or [])
         city.deals.setdefault(day, []).append(deal)
+    for rows in city.deals.values():
+        for deal in rows:
+            deal.stale = True
     return city if city.deals else None
 
 
@@ -537,6 +587,51 @@ def next_pickup(now: datetime | None = None, *, offset_days: int = 1) -> datetim
     return datetime(day.year, day.month, day.day, 10, 0, tzinfo=CN_TZ)
 
 
+def _verify_calendar_rows(
+    rows: Sequence[RentalDeal],
+    *,
+    city_name: str,
+    days: int,
+    pickup_text: str,
+    return_text: str,
+    client: GatewayClient,
+    limit: int,
+) -> list[dict[str, Any]]:
+    """对列表中最便宜的 N 条做价格日历核对；失败只记证据缺口。"""
+    errors: list[dict[str, Any]] = []
+    if limit <= 0:
+        return errors
+    for deal in list(rows)[:limit]:
+        if not deal.dept_id:
+            errors.append({
+                "city": city_name,
+                "days": days,
+                "modelId": deal.model_id,
+                "error": "价格日历缺少 pickupDeptId",
+            })
+            continue
+        try:
+            content = client.choose_car_price_calendar(
+                pickup_city_id=deal.city_id,
+                pickup_dept_id=deal.dept_id,
+                model_id=deal.model_id,
+                pickup_time=pickup_text,
+                return_time=return_text,
+            )
+            parsed = parse_price_calendar(content, expected_days=days)
+        except (GatewayError, OSError, ValueError) as exc:
+            errors.append({
+                "city": city_name,
+                "days": days,
+                "modelId": deal.model_id,
+                "error": f"价格日历: {str(exc)[:110]}",
+            })
+            continue
+        deal.calendar_total_fen = parsed.total_fen
+        deal.evidence = EVIDENCE_CALENDAR_RENT
+    return errors
+
+
 def _scan_one_city(
     name: str,
     *,
@@ -546,10 +641,13 @@ def _scan_one_city(
     periods: Sequence[int],
     pickup: datetime,
     client: GatewayClient,
-    fallback: dict[int, int],
-    calibrate_fee: bool = False,
+    calendar_verify: int = 0,
 ) -> tuple[RentalCity | None, list[dict[str, Any]]]:
-    """抓一个城市的三档报价。返回 (城市结果, 错误列表)。"""
+    """抓一个城市的三档列表参考价。返回 (城市结果, 错误列表)。
+
+    只调用 ``chooseCar/v3`` 获取候选和列表日均；不再调用月租起价接口
+    反推服务费。专用价格日历/订单核价由独立探测流程完成。
+    """
     errors: list[dict[str, Any]] = []
     city_id = index.city_id(name)
     center = centers.get(name)
@@ -557,24 +655,17 @@ def _scan_one_city(
         return None, [{"city": name, "error": "缺少 cityId 或坐标"}]
     lat, lon = center
     city = RentalCity(name=name, city_id=city_id)
-    try:
-        groups = client.long_rent_groups(city_id=city_id)
-        for group in (groups or {}).get("modelGroupList") or []:
-            gid = parse_int(group.get("modelGroupId")) or 0
-            price = parse_int(group.get("lowPrice")) or 0
-            if gid and price > 0:
-                city.group_prices[gid] = price
-    except (GatewayError, OSError, ValueError) as exc:
-        if "无库存" not in str(exc):
-            errors.append({"city": name, "error": f"月租校准失败: {str(exc)[:100]}"})
+    observed_at = datetime.now(CN_TZ).strftime("%Y-%m-%d %H:%M")
 
     for period in periods:
         return_at = pickup + timedelta(days=period)
+        pickup_text = pickup.strftime("%Y-%m-%d %H:%M")
+        return_text = return_at.strftime("%Y-%m-%d %H:%M")
         try:
             content = client.choose_cars(
                 city_id=city_id,
-                pickup_time=pickup.strftime("%Y-%m-%d %H:%M"),
-                return_time=return_at.strftime("%Y-%m-%d %H:%M"),
+                pickup_time=pickup_text,
+                return_time=return_text,
                 lat=lat,
                 lon=lon,
             )
@@ -589,9 +680,35 @@ def _scan_one_city(
         city.depts = max(city.depts, dept_n)
         city.model_count = max(city.model_count, model_n)
         if rows:
+            for row in rows:
+                if row.dept and row.dept not in city.dept_names:
+                    city.dept_names.append(row.dept)
             city.deals[period] = rows
+            city.period_meta[period] = {
+                "pickupAt": pickup_text,
+                "returnAt": return_text,
+                "observedAt": observed_at,
+                "priceGeneratedAt": observed_at,
+                "stale": False,
+                "source": "chooseCar/v3",
+                "evidence": EVIDENCE_LIST_REFERENCE,
+            }
+            calendar_errors = _verify_calendar_rows(
+                rows,
+                city_name=name,
+                days=period,
+                pickup_text=pickup_text,
+                return_text=return_text,
+                client=client,
+                limit=calendar_verify,
+            )
+            # 价格日历是增强证据，失败不阻塞列表参考价；独立计数。
+            city.period_meta[period]["calendarAttempts"] = min(calendar_verify, len(rows))
+            city.period_meta[period]["calendarFailures"] = len(calendar_errors)
+            if calendar_errors:
+                meta = city.period_meta[period]
+                meta["calendarErrorSample"] = calendar_errors[0].get("error", "")[:140]
 
-    apply_service_fees(city, fallback=fallback, calibrate=calibrate_fee)
     return city, errors
 
 
@@ -636,13 +753,10 @@ def scan_rentals(
     if client is not None:
         workers = 1
     pickup = next_pickup(offset_days=int(rental_cfg.get("pickup_offset_days", 1)))
-    fallback = {
-        int(k): int(v)
-        for k, v in (rental_cfg.get("service_fee_fallback") or DEFAULT_SERVICE_FEE).items()
-    }
-    calibrate_fee = bool(rental_cfg.get("calibrate_service_fee", False))
+    calendar_verify = max(0, int(rental_cfg.get("calendar_verify_per_city", 0) or 0))
     errors: list[dict[str, Any]] = []
     done: dict[str, RentalCity] = {}
+    clients: list[GatewayClient] = []
     carried = 0
     started = time.monotonic()
     lock = threading.Lock()
@@ -659,12 +773,14 @@ def scan_rentals(
 
     def make_client() -> GatewayClient:
         # 每个线程独立限速，全局速率 ≈ workers / (base_interval * workers) = 1/base_interval
-        return GatewayClient(
+        created = GatewayClient(
             timeout=timeout,
             retries=retries,
             min_interval=base_interval * workers,
             proxy_pool=proxy_pool,
         )
+        clients.append(created)
+        return created
 
     def record(city: RentalCity | None, errs: list[dict[str, Any]], name: str, *, failed: bool = False) -> None:
         nonlocal carried
@@ -705,8 +821,8 @@ def scan_rentals(
             try:
                 city, errs = _scan_one_city(
                     name, index=index, centers=centers, catalog=catalog,
-                    periods=periods, pickup=pickup, client=shared, fallback=fallback,
-                    calibrate_fee=calibrate_fee,
+                    periods=periods, pickup=pickup, client=shared,
+                    calendar_verify=calendar_verify,
                 )
             except Exception as exc:  # noqa: BLE001 - 单城异常不能中断整轮
                 record(None, [{"city": name, "error": str(exc)[:140]}], name, failed=True)
@@ -729,8 +845,7 @@ def scan_rentals(
                     periods=periods,
                     pickup=pickup,
                     client=make_client(),
-                    fallback=fallback,
-                    calibrate_fee=calibrate_fee,
+                    calendar_verify=calendar_verify,
                 ): name
                 for name in names
             }
@@ -755,9 +870,7 @@ def scan_rentals(
     elapsed = time.monotonic() - started
     payload["summary"]["elapsed"] = round(elapsed, 1)
     payload["summary"]["workers"] = workers
-    payload["summary"]["requests"] = getattr(client, "request_count", 0) or int(
-        total * (len(periods) + 1)
-    )
+    payload["summary"]["requests"] = sum(c.request_count for c in clients)
     if proxy_pool is not None:
         payload["summary"]["proxy"] = proxy_pool.stats()
         try:
@@ -767,13 +880,155 @@ def scan_rentals(
     log(
         f"[长租完成] {payload['summary']['cities']}/{total} 城 / "
         f"{payload['summary']['models']} 款 / {payload['summary']['deals']} 条报价 / "
-        f"最低 {payload['summary']['minDaily']} 元/天 / 沿用 {carried} 城 / "
+        f"最低列表参考 {payload['summary']['minListDaily']} 元/天 / "
+        f"日历已核 {payload['summary'].get('calendarVerified', 0)} 条 / "
+        f"沿用 {payload['summary'].get('carried', 0)} 城 / "
         f"失败 {len(errors)} / 用时 {elapsed:.1f}s"
     )
     return payload
 
 
+def _minute_text(value: Any) -> bool:
+    try:
+        datetime.strptime(str(value), "%Y-%m-%d %H:%M")
+        return True
+    except (TypeError, ValueError):
+        return False
+
+
+def validate_rental_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
+    """校验 v3 产物自洽；不通过则拒绝发布，绝不覆盖上一份可信数据。"""
+    if not isinstance(payload, dict):
+        raise PriceContractError("长租产物不是对象")
+    if payload.get("v") != PAYLOAD_VERSION:
+        raise PriceContractError(
+            f"长租产物版本为 {payload.get('v')!r}，需要 v{PAYLOAD_VERSION}"
+        )
+    cities = payload.get("cities")
+    deals = payload.get("deals")
+    models = payload.get("models")
+    summary = payload.get("summary")
+    if not isinstance(cities, list) or not isinstance(deals, list):
+        raise PriceContractError("cities/deals 必须是数组")
+    if not isinstance(models, dict) or not isinstance(summary, dict):
+        raise PriceContractError("models/summary 结构错误")
+    pricing = payload.get("pricing")
+    if not isinstance(pricing, dict) or pricing.get("kind") != EVIDENCE_LIST_REFERENCE:
+        raise PriceContractError("缺少明确的列表参考价口径")
+    if pricing.get("payableAvailable") is not False:
+        raise PriceContractError("当前没有订单应付证据，payableAvailable 必须为 false")
+
+    city_by_id: dict[str, dict[str, Any]] = {}
+    city_by_name: dict[str, dict[str, Any]] = {}
+    for city in cities:
+        if not isinstance(city, dict):
+            raise PriceContractError("cities 中存在非对象")
+        cid = str(city.get("cityId") or "")
+        name = str(city.get("name") or "")
+        if not cid or not name:
+            raise PriceContractError("城市缺少 cityId/name")
+        if cid in city_by_id:
+            raise PriceContractError(f"城市 cityId 重复: {cid}")
+        if name in city_by_name:
+            raise PriceContractError(f"城市名称重复: {name}")
+        periods = city.get("periods")
+        if not isinstance(periods, dict) or not periods:
+            raise PriceContractError(f"{name} 缺少 periods")
+        for day_text, period in periods.items():
+            try:
+                days = int(day_text)
+            except (TypeError, ValueError) as exc:
+                raise PriceContractError(f"{name} 非法租期: {day_text!r}") from exc
+            if days <= 0 or not isinstance(period, dict):
+                raise PriceContractError(f"{name} 的 {day_text} 天元数据错误")
+            if not _minute_text(period.get("pickupAt")) or not _minute_text(period.get("returnAt")):
+                raise PriceContractError(f"{name} {days} 天缺少精确取还时间")
+            if not _minute_text(period.get("priceGeneratedAt")):
+                raise PriceContractError(f"{name} {days} 天缺少价格生成时间")
+            if not isinstance(period.get("stale"), bool):
+                raise PriceContractError(f"{name} {days} 天缺少布尔 stale")
+        city_by_id[cid] = city
+        city_by_name[name] = city
+
+    seen_keys: set[tuple[str, int, int]] = set()
+    calendar_verified = 0
+    stale_deals = 0
+    for row in deals:
+        if not isinstance(row, list) or len(row) < 10:
+            raise PriceContractError("报价行必须是至少 10 列的数组")
+        cid = str(row[C_CITY])
+        city = city_by_id.get(cid)
+        if city is None:
+            raise PriceContractError(f"报价行引用未知城市: {cid}")
+        try:
+            model_id = int(row[C_MODEL])
+            days = int(row[C_DAYS])
+            list_fen = int(row[C_LIST])
+            std_fen = int(row[C_STD])
+            dept_idx = int(row[C_DEPT])
+            evidence = evidence_name(row[C_EVIDENCE])
+            stale = bool(int(row[C_STALE] or 0))
+        except (TypeError, ValueError) as exc:
+            raise PriceContractError(f"报价行字段类型错误: {row!r}") from exc
+        if model_id <= 0 or days <= 0 or list_fen <= 0 or std_fen <= 0:
+            raise PriceContractError(f"报价行价格/ID 非法: {row!r}")
+        if str(model_id) not in models:
+            raise PriceContractError(f"报价行引用未知车型: {model_id}")
+        if str(days) not in (city.get("periods") or {}):
+            raise PriceContractError(f"{city['name']} {days} 天缺少租期元数据")
+        dept_names = city.get("deptNames") or []
+        if dept_idx < 0 or dept_idx >= len(dept_names):
+            raise PriceContractError(f"{city['name']} 报价行门店索引越界")
+        key = (cid, model_id, days)
+        if key in seen_keys:
+            raise PriceContractError(f"报价行重复: {key}")
+        seen_keys.add(key)
+        cal = row[C_CAL]
+        if cal not in (None, ""):
+            try:
+                cal_value = int(cal)
+            except (TypeError, ValueError) as exc:
+                raise PriceContractError(f"日历合计不是整数分: {cal!r}") from exc
+            if cal_value <= 0:
+                raise PriceContractError(f"日历合计必须为正: {cal_value}")
+            if evidence != EVIDENCE_CALENDAR_RENT:
+                raise PriceContractError("有日历合计但证据级别不是 calendar_rent")
+            calendar_verified += 1
+        elif evidence == EVIDENCE_CALENDAR_RENT:
+            raise PriceContractError("证据级别为 calendar_rent 但缺少日历合计")
+        if stale:
+            stale_deals += 1
+            if not bool((city.get("periods") or {}).get(str(days), {}).get("stale")):
+                raise PriceContractError("报价行 stale 与租期元数据冲突")
+
+    stale_cities = sum(1 for city in cities if city.get("stale"))
+    expected = {
+        "cities": len(cities),
+        "models": len({int(row[C_MODEL]) for row in deals}),
+        "deals": len(deals),
+        "carried": stale_cities,
+        "staleCities": stale_cities,
+        "calendarVerified": calendar_verified,
+    }
+    for key, value in expected.items():
+        if summary.get(key) != value:
+            raise PriceContractError(
+                f"summary.{key}={summary.get(key)!r}，应与明细一致为 {value}"
+            )
+    if summary.get("errorCount") != payload.get("errorCount"):
+        raise PriceContractError("summary.errorCount 与顶层 errorCount 不一致")
+    if cities and stale_cities == len(cities) and len(deals):
+        raise PriceContractError(
+            "全部城市均为历史沿用：这是可疑快照，拒绝覆盖上一份可信产物"
+        )
+    if payload.get("errorCount") and not payload.get("errors"):
+        raise PriceContractError("errorCount 非零但 errors 为空")
+    return payload
+
+
 def save_payload(payload: dict[str, Any], path: str | Path) -> Path:
+    """校验后原子替换。校验失败时原文件保持不动。"""
+    validate_rental_payload(payload)
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(target.suffix + ".tmp")
