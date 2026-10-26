@@ -79,7 +79,10 @@ jobs:
           SZHITCH_WECOM: ${{ secrets.SZHITCH_WECOM }}
           SZHITCH_FEISHU: ${{ secrets.SZHITCH_FEISHU }}
           SZHITCH_BARK: ${{ secrets.SZHITCH_BARK }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # 读取订阅 Issue + 回执
+          # 私有控制面（可选）：配置 URL + 内部令牌后，订阅规则与发信切换到后台。
+          SZHITCH_CONTROL_PLANE_URL: ${{ secrets.SZHITCH_CONTROL_PLANE_URL }}
+          SZHITCH_INTERNAL_TOKEN: ${{ secrets.SZHITCH_INTERNAL_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # legacy Issue（迁移完成后可移除）
         run: python main.py once --export dashboard/dashboard.json
 
       - name: 保存本轮状态
