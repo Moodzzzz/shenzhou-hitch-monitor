@@ -1,0 +1,8 @@
+# 复制为 .dev.vars（已被 gitignore），只供本地 wrangler dev。
+# 不要提交真实值；生产环境使用 `wrangler secret put`。
+GITHUB_APP_CLIENT_SECRET=replace_me
+SESSION_SECRET=replace_with_at_least_32_random_bytes
+INTERNAL_TOKEN=replace_with_a_separate_random_token
+RESEND_API_KEY=
+# 本地默认控制台模式，不会真实发信。
+EMAIL_MODE=console
