@@ -1,0 +1,5 @@
+{
+  "enabled": true,
+  "apiBase": "https://szhitch-control-plane.<your-subdomain>.workers.dev",
+  "paymentEnabled": false
+}
