@@ -547,6 +547,22 @@ def merge_rental_parts(
             errors.append(item)
     if not cities:
         raise ValueError("所有分片都没有可用的城市数据")
+
+    # 防止拿昨天的分片冒充今天：观测日期不是今天的，按陈旧处理
+    today = datetime.now(CN_TZ).date()
+    for city in cities:
+        for day, rows in city.deals.items():
+            meta = city.period_meta.get(day) or {}
+            obs = str(meta.get("observedAt") or "")[:10]
+            try:
+                obs_date = datetime.strptime(obs, "%Y-%m-%d").date()
+            except ValueError:
+                obs_date = None
+            stale = obs_date != today
+            meta["stale"] = stale
+            for deal in rows:
+                deal.stale = stale
+
     return build_payload(
         cities,
         pickup_at=latest or next_pickup(),
