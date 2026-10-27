@@ -68,7 +68,7 @@
     "workers": 4,
     "save_every": 25,
     "pricing_mode": "list_reference",
-    "calendar_verify_per_city": 3
+    "calendar_verify_per_city": 5
   },
   "notify": {
     "console": true,
