@@ -25,6 +25,13 @@ on:
     # 负载高时定时会被推迟几十分钟甚至直接丢弃；错峰到 :07 / :37 准时率高得多。
     - cron: "7,37 * * * *"
   workflow_dispatch:
+    inputs:
+      source:
+        # 外部定时器（本机计划任务 / cron-job.org）传 scheduler，
+        # 撞车时会被新鲜度守卫跳过；面板上手点默认 manual，永远照跑。
+        description: 触发来源
+        type: string
+        default: manual
   # 改了工作流或筛选条件时立刻跑一次，方便验证
   push:
     branches: [main]
@@ -46,6 +53,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    outputs:
+      skipped: ${{ steps.freshness.outputs.skip }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,6 +71,13 @@ jobs:
             exit 1
           fi
 
+      - name: 新鲜度守卫（多路定时器撞车时去重）
+        id: freshness
+        env:
+          # schedule / push 事件没有 inputs，脚本按事件类型兜底判断
+          SZHITCH_TRIGGER_SOURCE: ${{ inputs.source }}
+        run: python tools/freshness_guard.py
+
       - name: 恢复上次状态（用于判断新增 / 锁定）
         uses: actions/cache/restore@v4
         with:
@@ -70,6 +86,7 @@ jobs:
           restore-keys: szhitch-state-
 
       - name: 抓取并推送
+        if: steps.freshness.outputs.skip != 'true'
         env:
           SZHITCH_SMTP_HOST: ${{ secrets.SZHITCH_SMTP_HOST }}
           SZHITCH_SMTP_PORT: ${{ secrets.SZHITCH_SMTP_PORT }}
@@ -95,6 +112,7 @@ jobs:
           key: szhitch-state-${{ github.run_id }}
 
       - name: 提交面板数据
+        if: steps.freshness.outputs.skip != 'true'
         continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
@@ -110,13 +128,16 @@ jobs:
             git push origin HEAD:main
           fi
 
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - if: steps.freshness.outputs.skip != 'true'
+        uses: actions/configure-pages@v5
+      - if: steps.freshness.outputs.skip != 'true'
+        uses: actions/upload-pages-artifact@v3
         with:
           path: dashboard
 
   deploy:
     needs: check
+    if: needs.check.outputs.skipped != 'true'
     runs-on: ubuntu-latest
     concurrency:
       group: pages
