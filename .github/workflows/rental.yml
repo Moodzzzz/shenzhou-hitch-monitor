@@ -1,20 +1,36 @@
 name: 神州长租行情
 
-# 全城市（471 城）× 全车型 × 7/15/30 天，一天抓一轮，北京时间 12:13 起跑。
-# 抓取走代理池（免费池兜底 + SZHITCH_PROXIES 付费池优先），4 路并发，
-# 单轮约 10–20 分钟。
+# 全城市（471 城）× 全车型 × 7/15/30 天，按省/直辖市分片跑。
 #
-# 产物：dashboard/rental.json。这里只提交数据，不单独发布 Pages，
-# 避免用旧 dashboard.json 覆盖刚跑完的顺风车数据；下一次 30 分钟监控会带上它发布。
+# 分工：
+#   * 扫描：云端 32 个 cron job，每个带一个 shard（beijing / guangdong / …），
+#     只抓自己省的城市，产物写 dashboard/parts/<shard>.json，互不干扰、可并行；
+#     分片清单见 data/rental_shards.json。
+#   * 合并：mode=merge 的任务把 parts/*.json 合成 dashboard/rental.json。
+#   * 兜底：每天 UTC 04:40（北京 12:40）定时跑一次 merge，
+#     万一某个分片漏了，也不会把上一轮数据丢掉。
+#
+# 这里只提交数据，不发布 Pages；下一次 30 分钟监控会带上它发布。
 
 on:
   schedule:
-    # UTC 04:13 = 北京时间 12:13。分钟错峰到 13：整点的 GitHub 调度洪峰常延迟 10–30 分钟。
-    - cron: "13 4 * * *"
+    # UTC 04:40 = 北京 12:40，分片跑完后的兜底合并
+    - cron: "40 4 * * *"
   workflow_dispatch:
+    inputs:
+      mode:
+        description: scan=抓分片（配合 shard），merge=合并分片
+        type: choice
+        options: [scan, merge]
+        default: scan
+      shard:
+        description: 分片 id（见 data/rental_shards.json，如 beijing / guangdong）
+        type: string
+        default: ""
 
+# 分片之间必须能并行，所以 group 带上 shard
 concurrency:
-  group: szhitch-rental
+  group: szhitch-rental-${{ inputs.shard || 'merge' }}
   cancel-in-progress: false
 
 permissions:
@@ -23,7 +39,7 @@ permissions:
 jobs:
   rental:
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -33,19 +49,45 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: 抓取长租报价
+      - name: 抓取长租报价（分片或全量）
+        if: github.event_name != 'schedule' && inputs.mode != 'merge'
         env:
           # 付费/自有代理池：Settings → Secrets 里加 SZHITCH_PROXIES
-          # 格式 http://user:pass@host:port，多条用逗号分隔；不配则只用免费池
           SZHITCH_PROXIES: ${{ secrets.SZHITCH_PROXIES }}
-        run: python main.py rentals --export dashboard/rental.json
+          SHARD: ${{ inputs.shard }}
+        run: |
+          set -euo pipefail
+          if [ -n "${SHARD}" ]; then
+            PROV=$(python -c "import json,sys;d=json.load(open('data/rental_shards.json'));s=[x for x in d['shards'] if x['id']==sys.argv[1]];print(','.join(s[0]['provinces']) if s else '')" "$SHARD")
+            if [ -z "$PROV" ]; then
+              echo "::error::未知分片 $SHARD"
+              exit 1
+            fi
+            echo "分片 $SHARD → $PROV"
+            mkdir -p dashboard/parts
+            python main.py rentals --provinces "$PROV" --export "dashboard/parts/$SHARD.json"
+          else
+            echo "未指定分片，按全量跑"
+            python main.py rentals --export dashboard/rental.json
+          fi
+
+      - name: 合并分片
+        if: github.event_name == 'schedule' || inputs.mode == 'merge'
+        run: |
+          set -euo pipefail
+          if [ ! -d dashboard/parts ] || [ -z "$(ls -A dashboard/parts 2>/dev/null)" ]; then
+            echo "没有分片产物，跳过合并（保留上一份 rental.json）"
+            exit 0
+          fi
+          ls -1 dashboard/parts | head -40
+          python main.py rentals --merge dashboard/parts --export dashboard/rental.json
 
       - name: 提交行情数据
         continue-on-error: true
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dashboard/rental.json
+          git add dashboard/rental.json dashboard/parts 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "长租行情无变化"
           else
