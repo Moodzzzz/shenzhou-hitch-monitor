@@ -499,6 +499,62 @@ def build_payload(
     }
 
 
+def merge_rental_parts(
+    parts_dir: str | Path,
+    *,
+    requested_cities: int = 0,
+) -> dict[str, Any]:
+    """把按省份分片抓到的 parts/*.json 合成一份全国 payload。
+
+    分片跑法：每个 job 只抓自己那几个省，产物落到 ``dashboard/parts/<分片>.json``；
+    全部跑完后再由 merge 任务调用这里合成 ``dashboard/rental.json``。
+    各片的 ``periods`` 元信息（取车时间、陈旧标记）原样保留，不重新推断。
+    """
+    parts = sorted(Path(parts_dir).glob("*.json"))
+    if not parts:
+        raise FileNotFoundError(f"{parts_dir} 里没有分片产物")
+    cities: list[RentalCity] = []
+    seen: set[str] = set()
+    errors: list[dict[str, Any]] = []
+    latest: datetime | None = None
+    for path in parts:
+        try:
+            payload = json.loads(path.read_text("utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            errors.append({"shard": path.name, "error": f"读取失败: {exc}"})
+            continue
+        if payload.get("v") != PAYLOAD_VERSION:
+            errors.append({"shard": path.name, "error": f"版本不符: {payload.get('v')}"})
+            continue
+        stamp = str(payload.get("pickup_at") or "")
+        for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d %H:%M:%S"):
+            try:
+                when = datetime.strptime(stamp, fmt).replace(tzinfo=CN_TZ)
+                latest = when if latest is None or when > latest else latest
+                break
+            except ValueError:
+                continue
+        for meta in payload.get("cities") or []:
+            name = str(meta.get("name") or "").strip()
+            if not name or name in seen:
+                continue
+            city = city_from_payload(payload, name, preserve_stale=True)
+            if city is None:
+                continue
+            cities.append(city)
+            seen.add(name)
+        for item in payload.get("errors") or []:
+            errors.append(item)
+    if not cities:
+        raise ValueError("所有分片都没有可用的城市数据")
+    return build_payload(
+        cities,
+        pickup_at=latest or next_pickup(),
+        errors=errors,
+        requested_cities=requested_cities or len(cities),
+    )
+
+
 def _deal_from_compact(row: Sequence[Any], city: RentalCity, meta: list[Any]) -> RentalDeal:
     days = int(row[C_DAYS]) or 0
     dept_idx = int(row[C_DEPT]) if len(row) > C_DEPT else 0
@@ -530,8 +586,17 @@ def _deal_from_compact(row: Sequence[Any], city: RentalCity, meta: list[Any]) ->
     )
 
 
-def city_from_payload(payload: dict[str, Any] | None, name: str) -> RentalCity | None:
-    """从上一轮 v3 产物恢复整城快照；旧租期和时间必须原样保留。"""
+def city_from_payload(
+    payload: dict[str, Any] | None,
+    name: str,
+    *,
+    preserve_stale: bool = False,
+) -> RentalCity | None:
+    """从上一轮 v3 产物恢复整城快照；旧租期和时间必须原样保留。
+
+    ``preserve_stale=False``（默认）用于「本轮没抓到、沿用上一轮」，
+    整城会被标成陈旧；分片合并时要传 ``True``，否则新鲜数据会被误判成历史沿用。
+    """
     if not payload or payload.get("v") != PAYLOAD_VERSION:
         return None
     meta = next((c for c in payload.get("cities") or [] if c.get("name") == name), None)
@@ -544,12 +609,13 @@ def city_from_payload(payload: dict[str, Any] | None, name: str) -> RentalCity |
         depts=int(meta.get("depts") or 0),
         model_count=int(meta.get("models") or 0),
         dept_names=list(meta.get("deptNames") or []),
-        stale=True,
+        stale=not preserve_stale,
     )
     for day_text, period in (meta.get("periods") or {}).items():
         if isinstance(period, dict):
             restored = dict(period)
-            restored["stale"] = True
+            if not preserve_stale:
+                restored["stale"] = True
             city.period_meta[int(day_text)] = restored
     for row in payload.get("deals") or []:
         if not isinstance(row, list) or str(row[C_CITY]) != city.city_id:
@@ -557,9 +623,12 @@ def city_from_payload(payload: dict[str, Any] | None, name: str) -> RentalCity |
         day = int(row[C_DAYS]) or 0
         deal = _deal_from_compact(row, city, models.get(str(row[C_MODEL])) or [])
         city.deals.setdefault(day, []).append(deal)
-    for rows in city.deals.values():
+    for day, rows in city.deals.items():
+        stale_flag = True if not preserve_stale else bool(
+            (city.period_meta.get(day) or {}).get("stale")
+        )
         for deal in rows:
-            deal.stale = True
+            deal.stale = stale_flag
     return city if city.deals else None
 
 
@@ -726,6 +795,7 @@ def scan_rentals(
     *,
     client: GatewayClient | None = None,
     cities: Sequence[str] | None = None,
+    provinces: Sequence[str] | None = None,
     days: Sequence[int] | None = None,
     log=print,
     export_path: str | Path | None = None,
@@ -735,6 +805,8 @@ def scan_rentals(
 ) -> dict[str, Any]:
     """逐城 × 租期抓取报价（默认全城市、全车型、多线程）。
 
+    ``provinces`` 用于按省份分片：多台/多个 job 各抓一省，产物再由
+    :func:`merge_rental_parts` 合成全国 payload。
     单个城市失败只记录，不中断整轮；若上一轮有该城市数据则沿用，
     并在 ``summary.carried`` 里计数，避免面板整块变空。
     """
@@ -749,6 +821,14 @@ def scan_rentals(
         names = all_rental_cities(index)
     else:
         names = load_rental_cities()
+    if provinces:
+        wanted = {str(p).strip() for p in provinces if str(p).strip()}
+
+        def _province(name: str) -> str:
+            # 极少数城市没带 province（数据缺失），统一归到「未分类」，避免分片漏城
+            return str((index.get(name) or {}).get("province") or "").strip() or "未分类"
+
+        names = [n for n in names if _province(n) in wanted]
     if limit > 0:
         names = names[:limit]
     periods = tuple(int(x) for x in (days or rental_cfg.get("periods") or DEFAULT_PERIODS))
