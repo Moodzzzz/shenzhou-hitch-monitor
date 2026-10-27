@@ -27,7 +27,7 @@ from szhitch.models import HitchItem
 from szhitch.monitor import Monitor
 from szhitch.notify import Message, build_notifiers
 from szhitch.rentals import load_payload as load_rental_payload
-from szhitch.rentals import save_payload, scan_rentals
+from szhitch.rentals import merge_rental_parts, save_payload, scan_rentals
 from szhitch.rules import build_profiles
 from szhitch.store import create_store
 
@@ -310,6 +310,17 @@ def cmd_snapshot(args) -> int:
 def cmd_rentals(args) -> int:
     """抓取普通租车的周租 / 半月租 / 月租行情，导出独立 JSON。"""
     cfg = _cfg(args)
+    path = Path(args.export or RENTAL_DATA)
+    if getattr(args, "merge", ""):
+        parts = Path(args.merge)
+        payload = merge_rental_parts(parts)
+        save_payload(payload, path)
+        print(
+            f"分片合并完成：{path}（{payload['summary']['cities']} 城 / "
+            f"{payload['summary']['models']} 款 / {payload['summary']['deals']} 条 / "
+            f"日历已核 {payload['summary'].get('calendarVerified', 0)} 条）"
+        )
+        return 0
     rental_cfg = cfg.setdefault("rental", {})
     if args.limit:
         rental_cfg["city_limit"] = args.limit
@@ -322,11 +333,14 @@ def cmd_rentals(args) -> int:
     if getattr(args, "no_proxy", False):
         cfg.setdefault("proxy", {})["enabled"] = False
     cities = [x.strip() for x in (args.cities or "").split(",") if x.strip()] or None
-    path = Path(args.export or RENTAL_DATA)
+    provinces = [
+        x.strip() for x in (getattr(args, "provinces", "") or "").split(",") if x.strip()
+    ] or None
     previous = load_rental_payload(path)
     payload = scan_rentals(
         cfg,
         cities=cities,
+        provinces=provinces,
         days=rental_cfg.get("periods"),
         export_path=path,
         save_every=int(rental_cfg.get("save_every", 25)),
@@ -445,6 +459,9 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--export", metavar="PATH", default="", help="输出路径，默认 dashboard/rental.json")
     p.add_argument("--days", default="", help="租期天数，逗号分隔，默认 7,15,30")
     p.add_argument("--cities", default="", help="只抓这些城市，逗号分隔（默认全城市）")
+    p.add_argument("--provinces", default="", help="只抓这些省份，逗号分隔（用于分片）")
+    p.add_argument("--merge", default="", metavar="DIR",
+                   help="合并分片目录（dashboard/parts）生成全国 rental.json")
     p.add_argument("--limit", type=int, default=0, help="只抓前 N 个城市，便于调试")
     p.add_argument("--workers", type=int, default=0, help="并发线程数，默认 4")
     p.add_argument("--calendar-limit", type=int, default=None,
