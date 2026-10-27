@@ -80,7 +80,7 @@ jobs:
             exit 0
           fi
           ls -1 dashboard/parts | head -40
-          python main.py rentals --merge dashboard/parts --export dashboard/rental.json
+          python main.py rentals --merge dashboard/parts --min-cities 300 --export dashboard/rental.json
 
       - name: 提交行情数据
         continue-on-error: true
