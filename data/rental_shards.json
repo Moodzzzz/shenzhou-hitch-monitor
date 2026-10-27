@@ -1,0 +1,262 @@
+{
+  "generated_at": "2026-10-27 23:13",
+  "note": "长租按省/直辖市分片：每个 shard 一个云端 job（12:00 起跑），产物 dashboard/parts/<id>.json，最后由 merge 合成 rental.json。",
+  "shards": [
+    {
+      "id": "anhui",
+      "label": "安徽",
+      "provinces": [
+        "安徽"
+      ],
+      "cities": 33
+    },
+    {
+      "id": "yunnan",
+      "label": "云南",
+      "provinces": [
+        "云南"
+      ],
+      "cities": 31
+    },
+    {
+      "id": "sichuan",
+      "label": "四川",
+      "provinces": [
+        "四川"
+      ],
+      "cities": 24
+    },
+    {
+      "id": "jiangsu",
+      "label": "江苏",
+      "provinces": [
+        "江苏"
+      ],
+      "cities": 24
+    },
+    {
+      "id": "xinjiang",
+      "label": "新疆",
+      "provinces": [
+        "新疆"
+      ],
+      "cities": 21
+    },
+    {
+      "id": "guangdong",
+      "label": "广东",
+      "provinces": [
+        "广东"
+      ],
+      "cities": 21
+    },
+    {
+      "id": "zhejiang",
+      "label": "浙江",
+      "provinces": [
+        "浙江"
+      ],
+      "cities": 20
+    },
+    {
+      "id": "liaoning",
+      "label": "辽宁",
+      "provinces": [
+        "辽宁"
+      ],
+      "cities": 19
+    },
+    {
+      "id": "jilin",
+      "label": "吉林",
+      "provinces": [
+        "吉林"
+      ],
+      "cities": 19
+    },
+    {
+      "id": "shandong",
+      "label": "山东",
+      "provinces": [
+        "山东"
+      ],
+      "cities": 19
+    },
+    {
+      "id": "heilongjiang",
+      "label": "黑龙江",
+      "provinces": [
+        "黑龙江"
+      ],
+      "cities": 18
+    },
+    {
+      "id": "gansu",
+      "label": "甘肃",
+      "provinces": [
+        "甘肃"
+      ],
+      "cities": 18
+    },
+    {
+      "id": "hebei",
+      "label": "河北",
+      "provinces": [
+        "河北"
+      ],
+      "cities": 18
+    },
+    {
+      "id": "hunan",
+      "label": "湖南",
+      "provinces": [
+        "湖南"
+      ],
+      "cities": 18
+    },
+    {
+      "id": "hubei",
+      "label": "湖北",
+      "provinces": [
+        "湖北"
+      ],
+      "cities": 18
+    },
+    {
+      "id": "henan",
+      "label": "河南",
+      "provinces": [
+        "河南"
+      ],
+      "cities": 17
+    },
+    {
+      "id": "neimenggu",
+      "label": "内蒙古",
+      "provinces": [
+        "内蒙古"
+      ],
+      "cities": 16
+    },
+    {
+      "id": "guizhou",
+      "label": "贵州",
+      "provinces": [
+        "贵州"
+      ],
+      "cities": 16
+    },
+    {
+      "id": "jiangxi",
+      "label": "江西",
+      "provinces": [
+        "江西"
+      ],
+      "cities": 15
+    },
+    {
+      "id": "guangxi",
+      "label": "广西",
+      "provinces": [
+        "广西"
+      ],
+      "cities": 14
+    },
+    {
+      "id": "fujian",
+      "label": "福建",
+      "provinces": [
+        "福建"
+      ],
+      "cities": 13
+    },
+    {
+      "id": "hainan",
+      "label": "海南",
+      "provinces": [
+        "海南"
+      ],
+      "cities": 12
+    },
+    {
+      "id": "shanxi",
+      "label": "山西",
+      "provinces": [
+        "山西"
+      ],
+      "cities": 11
+    },
+    {
+      "id": "shaanxi",
+      "label": "陕西",
+      "provinces": [
+        "陕西"
+      ],
+      "cities": 10
+    },
+    {
+      "id": "xizang",
+      "label": "西藏",
+      "provinces": [
+        "西藏"
+      ],
+      "cities": 8
+    },
+    {
+      "id": "qinghai",
+      "label": "青海",
+      "provinces": [
+        "青海"
+      ],
+      "cities": 7
+    },
+    {
+      "id": "ningxia",
+      "label": "宁夏",
+      "provinces": [
+        "宁夏"
+      ],
+      "cities": 5
+    },
+    {
+      "id": "unclassified",
+      "label": "未分类",
+      "provinces": [
+        "未分类"
+      ],
+      "cities": 2
+    },
+    {
+      "id": "beijing",
+      "label": "北京",
+      "provinces": [
+        "北京"
+      ],
+      "cities": 1
+    },
+    {
+      "id": "chongqing",
+      "label": "重庆",
+      "provinces": [
+        "重庆"
+      ],
+      "cities": 1
+    },
+    {
+      "id": "shanghai",
+      "label": "上海",
+      "provinces": [
+        "上海"
+      ],
+      "cities": 1
+    },
+    {
+      "id": "tianjin",
+      "label": "天津",
+      "provinces": [
+        "天津"
+      ],
+      "cities": 1
+    }
+  ]
+}
