@@ -314,6 +314,13 @@ def cmd_rentals(args) -> int:
     if getattr(args, "merge", ""):
         parts = Path(args.merge)
         payload = merge_rental_parts(parts)
+        floor = int(getattr(args, "min_cities", 0) or 0)
+        if floor and payload["summary"]["cities"] < floor:
+            print(
+                f"合并结果只有 {payload['summary']['cities']} 城，低于下限 {floor}，"
+                f"拒绝覆盖 {path}（保留上一份可信数据）"
+            )
+            return 1
         save_payload(payload, path)
         print(
             f"分片合并完成：{path}（{payload['summary']['cities']} 城 / "
@@ -462,6 +469,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--provinces", default="", help="只抓这些省份，逗号分隔（用于分片）")
     p.add_argument("--merge", default="", metavar="DIR",
                    help="合并分片目录（dashboard/parts）生成全国 rental.json")
+    p.add_argument("--min-cities", type=int, default=300,
+                   help="合并后城市数下限，低于此值拒绝覆盖（默认 300）")
     p.add_argument("--limit", type=int, default=0, help="只抓前 N 个城市，便于调试")
     p.add_argument("--workers", type=int, default=0, help="并发线程数，默认 4")
     p.add_argument("--calendar-limit", type=int, default=None,
