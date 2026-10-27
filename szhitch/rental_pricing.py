@@ -78,17 +78,31 @@ def _parse_day(value: str) -> date:
 
 @dataclass(frozen=True)
 class PriceCalendar:
-    """一次价格日历核对结果（只描述日历租金口径）。"""
+    """一次价格日历核对结果。
+
+    ``total_fen`` 是门市日租价合计（``totalDailyPrice``），只用来做核对基准；
+    ``package_total_fen`` 才是该租期的**套餐总价**（``totalPackagePrice``，
+    等于窗口内逐日套餐价之和），周租/半月租/月租的额外折扣都在这里。
+    """
 
     rent_term: int
     start_day: date
     end_day: date
     total_fen: int
     day_prices: tuple[tuple[date, int], ...]
+    package_total_fen: int | None = None
+    package_day_prices: tuple[tuple[date, int], ...] = ()
     evidence: str = EVIDENCE_CALENDAR_RENT
 
     def covered_days(self) -> int:
         return (self.end_day - self.start_day).days + 1
+
+    @property
+    def package_daily_fen(self) -> int | None:
+        """套餐总价折算到每天的租金（分）。"""
+        if self.package_total_fen is None or not self.rent_term:
+            return None
+        return round(self.package_total_fen / self.rent_term)
 
 
 def parse_price_calendar(
@@ -151,12 +165,47 @@ def parse_price_calendar(
         raise PriceContractError(
             f"逐日价合计 {covered} 分与 totalDailyPrice {total} 分不一致"
         )
+
+    # 套餐价：周租/半月租/月租的折扣都在这一层，和门市日租价是两个口径。
+    package_total: int | None = None
+    package_prices: tuple[tuple[date, int], ...] = ()
+    raw_package = content.get("packagePrices")
+    if isinstance(raw_package, list) and raw_package:
+        pkg_items: list[tuple[date, int]] = []
+        pkg_seen: set[date] = set()
+        for item in raw_package:
+            if not isinstance(item, dict):
+                raise PriceContractError("packagePrices 中存在非对象")
+            day = _parse_day(str(item.get("priceDate") or ""))
+            if day in pkg_seen:
+                raise PriceContractError(f"packagePrices 日期重复: {day}")
+            pkg_seen.add(day)
+            pkg_items.append(
+                (day, money_to_fen(item.get("dayPrice"), field=f"{day} 套餐日价"))
+            )
+        package_window = [(day, fen) for day, fen in pkg_items if start <= day <= end]
+        if len(package_window) != term:
+            raise PriceContractError(
+                f"packagePrices 覆盖 {len(package_window)} 天，与租期 {term} 天不一致"
+            )
+        package_total = money_to_fen(
+            content.get("totalPackagePrice"), field="totalPackagePrice"
+        )
+        package_sum = sum(fen for _, fen in package_window)
+        if package_sum != package_total:
+            raise PriceContractError(
+                f"套餐日价合计 {package_sum} 分与 totalPackagePrice {package_total} 分不一致"
+            )
+        package_prices = tuple(package_window)
+
     return PriceCalendar(
         rent_term=term,
         start_day=start,
         end_day=end,
         total_fen=total,
         day_prices=tuple(window),
+        package_total_fen=package_total,
+        package_day_prices=package_prices,
     )
 
 

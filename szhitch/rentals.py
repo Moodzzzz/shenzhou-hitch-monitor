@@ -70,8 +70,9 @@ def _yuan_int(value: Any, *, field: str = "金额") -> int | None:
 class RentalDeal:
     """某城市、某租期、某门店下的一款车。
 
-    ``rent_daily`` 是列表套餐日均参考；``calendar_total_fen`` 仅在价格日历
-    核对成功后存在。它们都不代表订单应付总额。
+    ``rent_daily`` 是列表套餐日均参考；``calendar_total_fen`` 是价格日历核过的
+    **该租期套餐总价**（周租/半月租/月租折扣已计入），核对失败时为空。
+    两者都只代表租金，不含出行服务费，也不等于订单应付总额。
     """
 
     city: str
@@ -630,7 +631,12 @@ def _verify_calendar_rows(
                 "error": f"价格日历: {str(exc)[:110]}",
             })
             continue
-        deal.calendar_total_fen = parsed.total_fen
+        # 优先用套餐总价（周租/半月租/月租的折扣在这一层），没有套餐价才退回门市合计
+        deal.calendar_total_fen = (
+            parsed.package_total_fen
+            if parsed.package_total_fen is not None
+            else parsed.total_fen
+        )
         deal.evidence = EVIDENCE_CALENDAR_RENT
     return errors
 

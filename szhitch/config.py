@@ -64,7 +64,7 @@ DEFAULT_CONFIG: dict[str, Any] = {
         # v3 只保存有证据的价格层级；没有专用接口/订单证据时不生成应付价。
         "pricing_mode": "list_reference",
         # 每城每租期只对列表最便宜的前 N 款做价格日历核验；0 关闭。
-        "calendar_verify_per_city": 3,
+        "calendar_verify_per_city": 5,
     },
     "behavior": {
         "first_run": "silent",
