@@ -1610,8 +1610,8 @@ function renderRentalList(){
     const dept = it.dept || "全市门店";
     const range = rentalRange(it);
     const cal = it.calendarTotal == null
-      ? `<b class="pending">—</b><span>待日历核价</span>`
-      : `<b>¥${money(it.calendarTotal)}</b><span>逐日合计 · ¥${money(it.calendarDaily)}/天</span>`;
+      ? `<b class="pending">—</b><span>待核套餐总价</span>`
+      : `<b>¥${money(it.calendarTotal)}</b><span>套餐总价 · ¥${money(it.calendarDaily)}/天</span>`;
     const stale = it.stale ? `<span class="stamp stale">陈旧沿用</span>` : `<span class="stamp ok">本轮观测</span>`;
     return `<article class="deal ticket ${esc(it.tier || "")}" style="animation-delay:${Math.min(i, 12) * 12}ms">
       <div class="deal-city">
@@ -1657,8 +1657,8 @@ function renderRentalLeaders(){
     };
   });
   $("#rentalNote").innerHTML = `<b>列表参考</b>：选车接口的套餐日均，只用于找候选，不乘天数当总价。<br>
-    <b>日历已核</b>：7/15/30 天逐日价合计，与价格日历接口对账；仍不是订单应付。<br>
-    <b>订单应付</b>：登录后的费用明细，本站在未取得契约前始终显示「待核价」。<br>
+    <b>套餐总价</b>：价格日历接口按该租期返回的逐日套餐价合计（周租 / 半月租 / 月租的长租折扣已计入），不是日租价乘天数。<br>
+    <b>订单应付</b>：登录后的费用明细（含出行服务费），本站在未取得契约前始终显示「待核价」。<br>
     数据 ${esc(ago(RENTAL.generated_at))}更新 · 全城市全车型，每天 12 点档抓一轮。`;
 }
 function renderRentalAll(){
