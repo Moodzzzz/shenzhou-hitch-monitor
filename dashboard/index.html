@@ -668,7 +668,7 @@
       <div>
         <p class="eyebrow">NATIONAL REPOSITIONING BOARD / 全国调度</p>
         <h2>把要调回外地的车<br><em>用补贴价开走</em></h2>
-        <p class="sub">顺风车是租车公司的异地调车：从 A 城取车、B 城还车，租金远低于普通日租。每 15 分钟同步一次 App 在售数据。</p>
+        <p class="sub">顺风车是租车公司的异地调车：从 A 城取车、B 城还车，租金远低于普通日租。每 30 分钟同步一次 App 在售数据。</p>
       </div>
       <div class="head-stat">
         <div class="v"><span id="heroMin">—</span><small>元起/天</small></div>
@@ -1659,7 +1659,7 @@ function renderRentalLeaders(){
   $("#rentalNote").innerHTML = `<b>列表参考</b>：选车接口的套餐日均，只用于找候选，不乘天数当总价。<br>
     <b>日历已核</b>：7/15/30 天逐日价合计，与价格日历接口对账；仍不是订单应付。<br>
     <b>订单应付</b>：登录后的费用明细，本站在未取得契约前始终显示「待核价」。<br>
-    数据 ${esc(ago(RENTAL.generated_at))}更新 · 全城市全车型，每天 12:00 抓一轮。`;
+    数据 ${esc(ago(RENTAL.generated_at))}更新 · 全城市全车型，每天 12 点档抓一轮。`;
 }
 function renderRentalAll(){
   if(!RENTAL) return;
@@ -1674,7 +1674,7 @@ function renderRentalAll(){
 /* ------------------------------------------------------------------ 渲染总入口 */
 function renderFoot(){
   if(!DATA) return;
-  $("#foot").textContent = `数据源 神州租车移动端公开接口 · 顺风车 ${ago(DATA.generated_at)}更新（15 分钟一轮） · 长租 ${RENTAL ? ago(RENTAL.generated_at) + "更新（每天 12:00 全量抓一轮）" : "行情待生成"} · 列表日均只作候选参考，最终以登录后订单费用明细为准`;
+  $("#foot").textContent = `数据源 神州租车移动端公开接口 · 顺风车 ${ago(DATA.generated_at)}更新（30 分钟一轮） · 长租 ${RENTAL ? ago(RENTAL.generated_at) + "更新（每天 12 点档全量抓一轮）" : "行情待生成"} · 列表日均只作候选参考，最终以登录后订单费用明细为准`;
 }
 function renderAll(){
   if(!DATA) return;
