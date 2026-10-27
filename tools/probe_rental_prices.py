@@ -91,12 +91,24 @@ def main(argv: list[str] | None = None) -> int:
                 "content": content,
                 "calendarTotal": round(parsed.total_fen / 100, 2),
                 "calendarDaily": round(parsed.total_fen / 100 / day, 2),
+                "packageTotal": (
+                    None
+                    if parsed.package_total_fen is None
+                    else round(parsed.package_total_fen / 100, 2)
+                ),
+                "packageDaily": (
+                    None
+                    if parsed.package_daily_fen is None
+                    else round(parsed.package_daily_fen / 100, 2)
+                ),
                 "evidence": parsed.evidence,
             }
+            pkg = parsed.package_total_fen
             print(
-                f"{day:>2} 天  日历合计 ¥{parsed.total_fen / 100:.2f}  "
-                f"折算 ¥{parsed.total_fen / 100 / day:.2f}/天  "
-                f"（日租口径，非应付）"
+                f"{day:>2} 天  套餐总价 "
+                + (f"¥{pkg / 100:.2f}（折算 ¥{parsed.package_daily_fen / 100:.2f}/天）"
+                   if pkg is not None else "—")
+                + f"  门市合计 ¥{parsed.total_fen / 100:.2f}  （租金口径，非应付）"
             )
         except (GatewayError, ValueError) as exc:
             failed += 1
