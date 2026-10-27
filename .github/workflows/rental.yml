@@ -5,7 +5,7 @@ name: 神州长租行情
 # 单轮约 10–20 分钟。
 #
 # 产物：dashboard/rental.json。这里只提交数据，不单独发布 Pages，
-# 避免用旧 dashboard.json 覆盖刚跑完的顺风车数据；下一次 15 分钟监控会带上它发布。
+# 避免用旧 dashboard.json 覆盖刚跑完的顺风车数据；下一次 30 分钟监控会带上它发布。
 
 on:
   schedule:

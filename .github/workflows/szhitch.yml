@@ -1,7 +1,7 @@
 name: 神州顺风车监控
 
 # 三件事：
-#   1. 每 15 分钟抓一轮顺风车，有新车上线/被锁定/回到订单库时发通知
+#   1. 每 30 分钟抓一轮顺风车，有新车上线/被锁定/回到订单库时发通知
 #   2. 把面板数据 dashboard/dashboard.json 提交回仓库（长租行情由 rental.yml 独立刷新）
 #   3. 发布到 GitHub Pages → https://<用户名>.github.io/<仓库名>/
 #
@@ -21,7 +21,8 @@ name: 神州顺风车监控
 
 on:
   schedule:
-    - cron: "*/15 * * * *"
+    # 每 30 分钟一轮（:00 / :30，UTC）；GitHub 定时任务可能延迟几分钟
+    - cron: "*/30 * * * *"
   workflow_dispatch:
   # 改了工作流或筛选条件时立刻跑一次，方便验证
   push:
