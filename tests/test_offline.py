@@ -639,6 +639,59 @@ class TestRentalPriceEvidence(unittest.TestCase):
         with self.assertRaises(PriceContractError):
             parse_price_calendar(content, expected_days=2)
 
+    def test_price_calendar_parses_package_total(self):
+        """套餐总价必须等于窗口内逐日套餐价之和，且低于门市合计。"""
+        data = json.loads(
+            (Path(__file__).parent / "fixtures" / "rental" / "price_calendar_terms.json")
+            .read_text("utf-8")
+        )
+        for days in (7, 15, 30):
+            parsed = parse_price_calendar(data["terms"][str(days)]["content"], expected_days=days)
+            self.assertIsNotNone(parsed.package_total_fen, f"{days} 天缺套餐总价")
+            self.assertEqual(
+                sum(fen for _, fen in parsed.package_day_prices),
+                parsed.package_total_fen,
+            )
+            self.assertLess(parsed.package_total_fen, parsed.total_fen)
+            self.assertEqual(
+                parsed.package_daily_fen,
+                round(parsed.package_total_fen / days),
+            )
+
+    def test_price_calendar_rejects_package_mismatch(self):
+        content = {
+            "rentStartDay": "2026-10-27",
+            "rentEndDay": "2026-10-28",
+            "rentTerm": "2",
+            "totalDailyPrice": "286",
+            "dayPrices": [
+                {"priceDate": "2026-10-27", "dayPrice": "148"},
+                {"priceDate": "2026-10-28", "dayPrice": "138"},
+            ],
+            "totalPackagePrice": "200",
+            "packagePrices": [
+                {"priceDate": "2026-10-27", "dayPrice": "60"},
+                {"priceDate": "2026-10-28", "dayPrice": "60"},
+            ],
+        }
+        with self.assertRaises(PriceContractError):
+            parse_price_calendar(content, expected_days=2)
+
+    def test_price_calendar_without_package_prices_is_tolerated(self):
+        content = {
+            "rentStartDay": "2026-10-27",
+            "rentEndDay": "2026-10-28",
+            "rentTerm": "2",
+            "totalDailyPrice": "286",
+            "dayPrices": [
+                {"priceDate": "2026-10-27", "dayPrice": "148"},
+                {"priceDate": "2026-10-28", "dayPrice": "138"},
+            ],
+        }
+        parsed = parse_price_calendar(content, expected_days=2)
+        self.assertIsNone(parsed.package_total_fen)
+        self.assertIsNone(parsed.package_daily_fen)
+
     def test_money_parser_uses_fen_without_truncation(self):
         self.assertEqual(money_to_fen("24"), 2400)
         self.assertEqual(money_to_fen("24.5"), 2450)
