@@ -45,7 +45,7 @@
 | 长租行情 v3 | 列表日均 / 价格日历合计 / 订单应付三档证据分开；无证据显示「待核价」 |
 | 全量长租 | 全国 471 城 × 全车型 × 三档租期；每城每租期抽样核验价格日历 |
 | 代理池 | 免费代理自动验活 + 付费代理优先，分散出口、降低限流 |
-| 实时同步 | 顺风车每 15 分钟刷新；长租每天 12:00 全量刷新；面板每 60 秒自动读最新 JSON |
+| 实时同步 | 顺风车每 30 分钟刷新（错峰 :07/:37）；长租每天 12 点档全量刷新；面板每 60 秒自动读最新 JSON |
 | App 式卡片流 | 顺风车首屏精选 6 辆 + 6 条路线，图片卡片、路线渐进展开，不再铺满全表 |
 | 私有控制面 | Cloudflare Workers + D1：管理员、double opt-in、邮件 outbox、审计、支付禁用态预留 |
 
@@ -105,7 +105,7 @@ pip install pypinyin && python tools/build_cities.py
 面板是一个**静态页 + 一份 JSON**，所以两种用法都行：
 
 - 本地：`python main.py serve --refresh`（或 `once --export dashboard/dashboard.json` 后起任意静态服务）
-- 线上：`szhitch.yml` 每 15 分钟刷新 `dashboard/dashboard.json` 并发布 Pages；`rental.yml` 每天 12:00 刷新 `dashboard/rental.json`（由下一轮顺风车一起发布）
+- 线上：`szhitch.yml` 每 30 分钟刷新 `dashboard/dashboard.json` 并发布 Pages；`rental.yml` 每天 12:13（北京时间）刷新 `dashboard/rental.json`（由下一轮顺风车一起发布）
 
 功能：
 
@@ -337,9 +337,9 @@ python main.py rentals --no-proxy    # 这一轮强制直连（排查用）
 4. 启用 Actions，手动跑一次（首次是建基线）
 5. 公开订阅需要私有后台时，按“私有订阅后台”一节部署，再配置 `SZHITCH_CONTROL_PLANE_URL`、`SZHITCH_INTERNAL_TOKEN`
 
-之后 `szhitch.yml` 每 15 分钟跑：抓取 → 通知/写入后台 outbox → 提交 `dashboard/dashboard.json` → 发布 Pages；
+之后 `szhitch.yml` 每 30 分钟跑：抓取 → 通知/写入后台 outbox → 提交 `dashboard/dashboard.json` → 发布 Pages；
 `rental.yml` 每天北京时间 12:00 跑：抓取 471 城 × 全车型 × 三档长租与抽样价格日历 → 提交 `dashboard/rental.json`
-（不单独发布 Pages，避免用旧顺风车数据覆盖线上；下一轮 15 分钟监控会带上它）。
+（不单独发布 Pages，避免用旧顺风车数据覆盖线上；下一轮 30 分钟监控会带上它）。
 面板地址形如 `https://<用户名>.github.io/<仓库名>/`。
 
 > 仓库是公开的，所以**密钥只能放 Secrets**。配置里留空即可，工作流里有一道检查，
