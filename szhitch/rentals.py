@@ -499,6 +499,50 @@ def build_payload(
     }
 
 
+def sanitize_calendar_totals(cities: Sequence[RentalCity], *, min_ratio: float = 0.2) -> int:
+    """剔除明显失真的套餐总价，返回剔除条数。
+
+    实测（2026-10-28）发现两类异常，都是接口原样返回但语义不可信：
+
+    * 同城同店同车，租期越长总价反而越低（例如三亚途铠 7 天 204、15 天 94、
+      30 天 139），长租档显然不是真实报价；
+    * 套餐日均低到门市日价的 20% 以下，基本是占位值/系统脏数据。
+
+    处理方式是**不采信**：把该行的套餐总价清空，面板回落为「待核套餐总价」，
+    绝不臆造一个「修正后」的价格。
+    """
+    dropped = 0
+    for city in cities:
+        for day, rows in city.deals.items():
+            for deal in rows:
+                if deal.calendar_total_fen is None:
+                    continue
+                std_fen = int(deal.standard_daily or 0) * 100
+                if std_fen > 0 and deal.calendar_total_fen < std_fen * day * min_ratio:
+                    deal.calendar_total_fen = None
+                    dropped += 1
+
+    groups: dict[tuple[str, int, str], list[RentalDeal]] = {}
+    for city in cities:
+        for rows in city.deals.values():
+            for deal in rows:
+                if deal.calendar_total_fen is None:
+                    continue
+                groups.setdefault((city.city_id, deal.model_id, deal.dept_id), []).append(deal)
+    for deals in groups.values():
+        if len(deals) < 2:
+            continue
+        deals.sort(key=lambda d: d.days)
+        floor: int | None = None
+        for deal in deals:
+            if floor is not None and deal.calendar_total_fen < floor:
+                deal.calendar_total_fen = None
+                dropped += 1
+                continue
+            floor = deal.calendar_total_fen
+    return dropped
+
+
 def merge_rental_parts(
     parts_dir: str | Path,
     *,
@@ -563,12 +607,15 @@ def merge_rental_parts(
             for deal in rows:
                 deal.stale = stale
 
-    return build_payload(
+    dropped = sanitize_calendar_totals(cities)
+    payload = build_payload(
         cities,
         pickup_at=latest or next_pickup(),
         errors=errors,
         requested_cities=requested_cities or len(cities),
     )
+    payload["summary"]["suspiciousTotals"] = dropped
+    return payload
 
 
 def _deal_from_compact(row: Sequence[Any], city: RentalCity, meta: list[Any]) -> RentalDeal:
@@ -904,13 +951,16 @@ def scan_rentals(
 
     def snapshot() -> dict[str, Any]:
         ordered = [done[n] for n in names if n in done]
-        return build_payload(
+        dropped = sanitize_calendar_totals(ordered)
+        payload = build_payload(
             ordered,
             pickup_at=pickup,
             errors=errors,
             requested_cities=total,
             carried=carried,
         )
+        payload["summary"]["suspiciousTotals"] = dropped
+        return payload
 
     def flush() -> None:
         if not export_path:
