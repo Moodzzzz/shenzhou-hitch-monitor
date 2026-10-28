@@ -112,7 +112,9 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add dashboard/rental.json dashboard/parts 2>/dev/null || true
+          # 不能写成 git add a b：任一路径不存在会导致整条命令失败、什么都不入栈
+          if [ -d dashboard/parts ]; then git add -A dashboard/parts; fi
+          if [ -f dashboard/rental.json ]; then git add dashboard/rental.json; fi
           if git diff --cached --quiet; then
             echo "长租行情无变化"
             exit 0
