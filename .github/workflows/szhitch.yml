@@ -128,16 +128,15 @@ jobs:
             git push origin HEAD:main
           fi
 
-      - if: steps.freshness.outputs.skip != 'true'
-        uses: actions/configure-pages@v5
-      - if: steps.freshness.outputs.skip != 'true'
-        uses: actions/upload-pages-artifact@v3
+      # 发布不跟去重挂钩：长租每年一次 merge 只改 rental.json，
+      # 若这轮顺风车数据恰好是新的，跳过 deploy 就会让面板继续 404/旧数据。
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: dashboard
 
   deploy:
     needs: check
-    if: needs.check.outputs.skipped != 'true'
     runs-on: ubuntu-latest
     concurrency:
       group: pages
