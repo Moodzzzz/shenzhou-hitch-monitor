@@ -83,17 +83,30 @@ jobs:
           python main.py rentals --merge dashboard/parts --min-cities 300 --export dashboard/rental.json
 
       - name: 提交行情数据
-        continue-on-error: true
         run: |
+          set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add dashboard/rental.json dashboard/parts 2>/dev/null || true
           if git diff --cached --quiet; then
             echo "长租行情无变化"
-          else
-            git commit -m "chore: 更新长租行情 [skip ci]"
-            git checkout -- .
-            git fetch origin main
-            git rebase origin/main
-            git push origin HEAD:main
+            exit 0
           fi
+          git commit -m "chore: 更新长租行情 [skip ci]"
+          # 32 个分片会同时推 main，rebase 竞争必然发生，必须重试而不是静默失败
+          for i in 1 2 3 4 5; do
+            if git push origin HEAD:main; then
+              echo "推送成功（第 $i 次）"
+              exit 0
+            fi
+            echo "推送失败，$((i * 3))s 后重试（第 $i 次）"
+            sleep $((i * 3))
+            git fetch origin main
+            git rebase --abort 2>/dev/null || true
+            git rebase origin/main 2>/dev/null || {
+              echo "::error::rebase 冲突，放弃本轮提交"
+              exit 1
+            }
+          done
+          echo "::error::重试 5 次仍无法推送"
+          exit 1
