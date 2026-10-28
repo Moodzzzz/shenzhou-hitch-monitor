@@ -19,9 +19,9 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: scan=抓分片（配合 shard），merge=合并分片
+        description: scan=抓分片（配合 shard），merge=合并分片，reset=清空长租数据
         type: choice
-        options: [scan, merge]
+        options: [scan, merge, reset]
         default: scan
       shard:
         description: 分片 id（见 data/rental_shards.json，如 beijing / guangdong）
@@ -50,7 +50,7 @@ jobs:
           python-version: "3.12"
 
       - name: 抓取长租报价（分片或全量）
-        if: github.event_name != 'schedule' && inputs.mode != 'merge'
+        if: github.event_name != 'schedule' && (inputs.mode == 'scan' || inputs.mode == '')
         env:
           # 付费/自有代理池：Settings → Secrets 里加 SZHITCH_PROXIES
           SZHITCH_PROXIES: ${{ secrets.SZHITCH_PROXIES }}
@@ -70,6 +70,31 @@ jobs:
             echo "未指定分片，按全量跑"
             python main.py rentals --export dashboard/rental.json
           fi
+
+      - name: 清空长租数据
+        if: inputs.mode == 'reset'
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm -r -q --ignore-unmatch dashboard/parts dashboard/rental.json
+          if git diff --cached --quiet; then
+            echo "本来就没有长租数据"
+            exit 0
+          fi
+          git commit -m "chore: 清空长租数据，等待重跑 [skip ci]"
+          for i in 1 2 3 4 5; do
+            if git push origin HEAD:main; then
+              echo "已清空（第 $i 次）"
+              exit 0
+            fi
+            sleep $((i * 3))
+            git fetch origin main
+            git rebase --abort 2>/dev/null || true
+            git rebase origin/main
+          done
+          echo "::error::清空失败"
+          exit 1
 
       - name: 合并分片
         if: github.event_name == 'schedule' || inputs.mode == 'merge'
