@@ -520,6 +520,7 @@ def sanitize_calendar_totals(cities: Sequence[RentalCity], *, min_ratio: float =
                 std_fen = int(deal.standard_daily or 0) * 100
                 if std_fen > 0 and deal.calendar_total_fen < std_fen * day * min_ratio:
                     deal.calendar_total_fen = None
+                    deal.evidence = EVIDENCE_LIST_REFERENCE
                     dropped += 1
 
     groups: dict[tuple[str, int, str], list[RentalDeal]] = {}
@@ -537,6 +538,7 @@ def sanitize_calendar_totals(cities: Sequence[RentalCity], *, min_ratio: float =
         for deal in deals:
             if floor is not None and deal.calendar_total_fen < floor:
                 deal.calendar_total_fen = None
+                deal.evidence = EVIDENCE_LIST_REFERENCE
                 dropped += 1
                 continue
             floor = deal.calendar_total_fen
